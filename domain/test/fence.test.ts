@@ -38,21 +38,28 @@ describe('the fence test — docs/ARQUITETURA.md', () => {
     expect(node.atualizado).toBeNull();
   });
 
-  it('does not turn the fenced example `---` lines into links, tasks or extra headings', () => {
+  it('does not turn the fenced example into links, tasks or extra headings', () => {
     // the fence contains `tags: [tag1, tag2]`, `criado: AAAA-MM-DD` etc. as
-    // plain text inside a code block — none of that may surface as a link
-    // or task in the parsed node.
-    const fencedText = 'tags: [tag1, tag2]';
-    expect(node.links.some((l) => l.raw.includes(fencedText))).toBe(false);
+    // plain text inside a code block — none of that may surface as a link,
+    // task or heading in the parsed node. Assert by *content*, not by a
+    // total count: this doc grows prose lists and headings over time
+    // (the "crescimento orgânico" rule) and a fixed count would rot.
+    expect(node.links.some((l) => /tag1|tag2|AAAA-MM-DD/.test(l.raw))).toBe(false);
+    expect(node.tasks.some((t) => /tag1|tag2|AAAA-MM-DD|^criado:|^atualizado:/.test(t.text))).toBe(false);
+    expect(node.headings.some((h) => /tag1|tag2|AAAA-MM-DD/.test(h.text))).toBe(false);
+    // A prose doc with no checkboxes and no `[~]` items has zero tasks even
+    // though it has dozens of bullet lists — the parser must not count a
+    // plain bullet as a task.
     expect(node.tasks.length).toBe(0);
   });
 
-  it('does not treat a mid-document `---` (horizontal rule, e.g. line 78) as frontmatter', () => {
-    // Sanity: the file has a `---` far from line 1 used as an <hr>. Only
-    // position-0 frontmatter should ever be recognized; this is implicit
-    // in remark-frontmatter's own behavior, asserted here so a future
-    // change to the parsing pipeline can't quietly break it.
-    expect(bytes.split('\n')[77]).toBe('---'); // 0-based index 77 == line 78
+  it('does not treat a mid-document `---` (horizontal rule) as frontmatter', () => {
+    // Sanity: the file uses `---` as an <hr> somewhere past line 1. Only
+    // position-0 frontmatter should ever be recognized. Locate the rule by
+    // scanning, not by a hard-coded line number that every edit shifts.
+    const lines = bytes.split('\n');
+    const midRule = lines.findIndex((l, i) => i > 0 && l.trim() === '---');
+    expect(midRule).toBeGreaterThan(0);
     expect(node.frontmatter).toBeNull();
   });
 });

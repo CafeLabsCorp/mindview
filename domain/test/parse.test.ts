@@ -54,6 +54,21 @@ describe('checkbox states, including [~] paused', () => {
     const nested = node.tasks.filter((t) => t.nested);
     expect(nested.length).toBe(2);
   });
+
+  it('does not count a plain bullet (no checkbox, no [~]) as a task', () => {
+    const bytes = [
+      '# Doc',
+      '',
+      '- só um item de lista em prosa',
+      '- outro item',
+      '  - sub-item',
+      '',
+      '- [ ] esse sim é task',
+      '- [~] esse também',
+    ].join('\n');
+    const n = parseNode('d.md', bytes);
+    expect(n.tasks.map((t) => t.state)).toEqual(['open', 'paused']);
+  });
 });
 
 describe('heading slugs with accents', () => {

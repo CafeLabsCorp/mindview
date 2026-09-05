@@ -132,8 +132,13 @@ function collectTasks(node: Root | List | ListItem | { children?: unknown[] }, l
     if (child.type === 'list') {
       collectTasks(child as unknown as List, listDepth + 1, out);
     } else if (child.type === 'listItem') {
-      out.push(parseTask(child as ListItem, listDepth > 1));
-      collectTasks(child as unknown as ListItem, listDepth, out);
+      const li = child as ListItem;
+      // Only real tasks count — a GFM checkbox (`[ ]`/`[x]`) or the vault's
+      // `[~]` paused convention (which remark-gfm leaves as a plain item,
+      // see parseTask). A plain bullet is prose, not a task: docs/ARQUITETURA.md
+      // is all prose lists and must yield zero tasks.
+      if (isTaskItem(li)) out.push(parseTask(li, listDepth > 1));
+      collectTasks(li as unknown as ListItem, listDepth, out);
     } else {
       collectTasks(child as { children?: unknown[] }, listDepth, out);
     }
@@ -148,18 +153,23 @@ function firstParagraphText(li: ListItem): string {
   return mdastToString(li);
 }
 
+// remark-gfm only recognizes `[ ]`/`[x]`/`[X]` (→ li.checked is a boolean).
+// `[~]` (paused) is not a GFM checkbox, so it arrives as a plain list item
+// with checked === null and literal "[~] " leading text — see backend spec.
+function isPausedItem(li: ListItem): boolean {
+  return firstParagraphText(li).startsWith('[~]');
+}
+
+function isTaskItem(li: ListItem): boolean {
+  return li.checked === true || li.checked === false || isPausedItem(li);
+}
+
 function parseTask(li: ListItem, nested: boolean): TaskInfo {
   const text = firstParagraphText(li);
   let state: TaskInfo['state'];
   if (li.checked === true) state = 'done';
-  else if (li.checked === false) {
-    // remark-gfm only recognizes `[ ]`/`[x]`/`[X]`. `[~]` (paused) is not a
-    // GFM checkbox, so it reaches us as an ordinary list item with
-    // checked === null and literal "[~] " text — see backend spec.
-    state = text.startsWith('[~] ') || text.startsWith('[~]') ? 'paused' : 'open';
-  } else {
-    state = text.startsWith('[~] ') || text.startsWith('[~]') ? 'paused' : 'open';
-  }
+  else if (li.checked === false) state = 'open';
+  else state = 'paused'; // only reached for `[~]` items (isTaskItem gate)
   return { text: text.replace(/^\[~\]\s*/, ''), state, nested, position: toPosition(li) };
 }
 

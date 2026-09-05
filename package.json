@@ -11,8 +11,9 @@
     "build:web": "npm run build -w web",
     "start": "npm run build:web && npm run start -w server",
     "dev": "concurrently -k -n web,server -c cyan,green \"npm run dev -w web\" \"npm run dev -w server\"",
-    "test": "npm run test -w domain && npm run test -w server",
-    "lint": "npm run lint -w web"
+    "test": "npm run test -w domain && npm run test -w server && npm run test -w web",
+    "typecheck": "npm run typecheck -w domain && npm run typecheck -w server && npm run typecheck -w web",
+    "check": "npm run typecheck && npm run test && npm run build:web"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

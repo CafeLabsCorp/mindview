@@ -27,18 +27,13 @@ export function autoColorForTag(tag: string): string {
   return AUTO_PALETTE[hash(tag) % AUTO_PALETTE.length];
 }
 
-/** Which tag on a node decides its color. "last" = most specific (the tag
- * list ends with the narrowest one in ~93% of nodes; the first tag is
- * almost always just the folder name). */
-export type ColorBy = 'last' | 'first';
-
-export function colorForNode(
-  tags: string[],
-  colorBy: ColorBy,
-  userColors: Record<string, string>,
-  fallback: string,
-): string {
+/** A node is coloured by its FIRST tag — the broad one, which is the folder
+ * name in ~93% of nodes. That makes the graph read as coloured regions
+ * instead of confetti. There used to be a "most specific / first" pair of
+ * chips here; it was cut because the distinction never explained itself in
+ * the UI (see mind/tarefas/empresa/mindview.md). */
+export function colorForNode(tags: string[], userColors: Record<string, string>, fallback: string): string {
   if (tags.length === 0) return fallback;
-  const tag = colorBy === 'first' ? tags[0] : tags[tags.length - 1];
+  const tag = tags[0];
   return userColors[tag] ?? autoColorForTag(tag);
 }

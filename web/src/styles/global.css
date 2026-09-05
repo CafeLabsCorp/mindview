@@ -139,6 +139,7 @@ input:focus-visible,
   padding: 2px 6px;
   line-height: 1.5;
   flex-shrink: 0;
+  cursor: pointer;
 }
 .icon-btn:hover {
   color: var(--fg);
@@ -472,10 +473,21 @@ input[type='color']::-moz-color-swatch {
 
 /* -------------------------------------------------------------- reader */
 
+/* Fills .screen-area exactly (chrome fixed height + layout takes the rest)
+   so the ONLY scrollbar in the reader is .reader-article-col's — without
+   this, .reader-layout at height:100% plus the chrome overflowed
+   .screen-area and you got a second, outer scrollbar. */
+.reader-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
 .reader-layout {
   display: flex;
   gap: 0;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 .reader-article-col {
   flex: 1;
@@ -492,6 +504,15 @@ input[type='color']::-moz-color-swatch {
   overflow: auto;
   padding: 20px 16px;
   background: var(--surface);
+}
+.reader-rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.reader-rail-head .sidebar-section-label {
+  padding: 0;
 }
 .reader-empty {
   color: var(--subtle);

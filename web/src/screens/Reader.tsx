@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApi } from '../hooks/useApi';
 import { api } from '../api/client';
 import type { AppState, NodeResponse } from '../api/types';
@@ -10,12 +10,21 @@ import { BacklinksPanel } from '../components/BacklinksPanel';
 import { NodeToolbar } from '../components/NodeToolbar';
 import { useSettings } from '../context/SettingsContext';
 import { useBumpAppState } from '../context/AppStateEvents';
+import { loadTocCollapsed, saveTocCollapsed } from '../lib/tocCollapsed';
 
 export function Reader({ path }: { path: string | null }) {
   const { data, loading, error } = useApi<NodeResponse>(path ? `/node?path=${encodeURIComponent(path)}` : null);
   const { data: state } = useApi<AppState>('/state');
   const { settings } = useSettings();
   const bump = useBumpAppState();
+
+  const [tocCollapsed, setTocCollapsed] = useState(loadTocCollapsed);
+  const toggleToc = () => {
+    setTocCollapsed((c) => {
+      saveTocCollapsed(!c);
+      return !c;
+    });
+  };
 
   // GET /api/node (above) is what the server records into Recentes. That
   // used to leave every OTHER screen's own /state copy stale (Sidebar's
@@ -40,18 +49,19 @@ export function Reader({ path }: { path: string | null }) {
 
   if (!path) {
     return (
-      <>
+      <div className="reader-screen">
         <TerminalChrome path="~/mind" />
         <div className="reader-empty">Escolha um nó na árvore à esquerda, ou Ctrl+K pra buscar.</div>
-      </>
+      </div>
     );
   }
 
   const isPinned = state?.pinnedNodes.includes(path) ?? false;
   const togglePin = () => api.post('/state/pin', { path }).then(bump);
+  const tocAvailable = !!data && settings.tocEnabled && data.node.headings.length > 0;
 
   return (
-    <>
+    <div className="reader-screen">
       <TerminalChrome path={`~/mind/${path}`} />
       <div className="reader-layout">
         <div className="reader-article-col">
@@ -64,7 +74,15 @@ export function Reader({ path }: { path: string | null }) {
           {error && <div className="error-banner">{error}</div>}
           {data && (
             <div style={{ maxWidth: 'var(--read-col)', width: '100%' }}>
-              <NodeToolbar obsidian={data.obsidian} vscode={data.vscode} isPinned={isPinned} onTogglePin={togglePin} />
+              <NodeToolbar
+                obsidian={data.obsidian}
+                vscode={data.vscode}
+                isPinned={isPinned}
+                onTogglePin={togglePin}
+                showTocToggle={tocAvailable}
+                tocCollapsed={tocCollapsed}
+                onToggleToc={toggleToc}
+              />
               <h1 style={{ fontFamily: 'var(--font-display)' }}>{data.node.title}</h1>
               <FrontmatterCard tags={data.node.tags} criado={data.node.criado} atualizado={data.node.atualizado} />
               <MarkdownBody raw={data.node.raw} headings={data.node.headings} links={data.node.links} />
@@ -72,12 +90,18 @@ export function Reader({ path }: { path: string | null }) {
             </div>
           )}
         </div>
-        {data && settings.tocEnabled && (
+        {data && tocAvailable && !tocCollapsed && (
           <div className="reader-rail">
+            <div className="reader-rail-head">
+              <span className="sidebar-section-label">Índice</span>
+              <button className="icon-btn" title="Ocultar índice" onClick={toggleToc}>
+                ›
+              </button>
+            </div>
             <TocPanel headings={data.node.headings} />
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }

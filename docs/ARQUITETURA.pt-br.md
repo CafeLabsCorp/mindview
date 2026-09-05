@@ -1,0 +1,444 @@
+**[Read in English](ARQUITETURA.md)**
+
+# Arquitetura — MindView
+
+O MindView é um visualizador somente-leitura sobre o vault Mind: um server
+HTTP local (`server`) expõe um parser/index puro (`domain`) pra uma SPA React
+(`web`). Não há banco de dados, não há contas de usuário, não há dependência
+de nuvem — os próprios arquivos Markdown do vault são a única fonte de
+verdade, e os dados do próprio MindView (tema, cadernos, nós fixados) vivem
+num único diretório local fora do vault, nunca misturado nele.
+
+## 1. Os três pacotes, e por que essa divisão
+
+```
+domain  (puro, sem fs)  →  server  (toda a IO + HTTP)  →  web  (UI React)
+```
+
+- **`domain`** — `(path, bytes) -> ParsedNode`, mais um index builder e um
+  punhado de selectors (search, board, staleness, links quebrados/fora,
+  órfãos, tree). Nunca toca `node:fs` nem rede — ver o comentário no topo de
+  `domain/src/types.ts`. Isso é deliberado, não incidental: significa que
+  toda a lógica de parsing/indexação pode ser testada unitariamente com
+  strings puras (sem fixtures em disco), e pode ser reaproveitada sem
+  alteração se o MindView algum dia ganhar um segundo frontend (uma CLI, uma
+  casca Electron com renderer diferente) — nada disso tocaria uma linha de
+  `domain`.
+- **`server`** — o composition root. Tudo que lê um arquivo de verdade,
+  observa o filesystem, faz bind de socket, ou escreve estado do app vive
+  aqui, sob `server/src/io/` e `server/src/app/`. `server/src/index.ts` é o
+  único lugar que conecta as funções puras do `domain` a IO de disco real e
+  transforma o resultado em respostas HTTP.
+- **`web`** — uma SPA Vite + React 19 que conversa com o `server` só via
+  `/api/*` e nada mais (sem acesso direto a filesystem, nunca — mesmo em
+  dev, passa pelo proxy do próprio Vite pro processo do server, ver §7).
+
+Isso foi escrito no ciclo `frontend-web` depois que `domain` e um mockup de
+design já existiam mas nenhum processo de verdade servia o vault por HTTP —
+o `server` era o composition root que faltava, não uma nova camada
+arquitetural inventada em cima de decisões já acordadas.
+
+## 2. Um único lar local pros dados do próprio MindView, fora do vault
+
+O MindView precisa persistir o próprio estado — tema, cadernos, nós
+fixados, token de autenticação por execução — mas **nada disso vai dentro
+da árvore de pastas do vault**. Uma ideia anterior (uma pasta `.mind-app/`
+dentro do vault) foi derrubada durante o ciclo `backend`:
+
+- sujaria permanentemente a saída do `scripts/status-all.sh`;
+- ficaria num padrão de diretório patrulhado pelo próprio agente
+  `maintenance` do vault (que tem acesso de escrita e mandato de cortar
+  cruft);
+- vazaria pro `mind-template` (o espelho genérico e clonável do vault) e sua
+  checagem semanal de divergência;
+- criaria conflitos de merge em `git merge upstream/main` pra quem clonar o
+  template.
+
+`.md`/YAML era o **formato** certo pros cadernos; dentro do vault era o
+**lugar** errado. O estado do próprio MindView vive num único diretório —
+`server/src/app/paths.ts`: `~/.local/share/mindview` (override:
+`MINDVIEW_DATA_DIR` / `MINDVIEW_STATE_DIR`, os dois apontam pra cá por
+padrão). O código ainda mantém dois agrupamentos lógicos, `houseA.ts` e
+`stateB.ts`, porque são escritos de formas diferentes (`atomicWriteFile` com
+`.bak` num, escrita simples no outro) — mas existe só um diretório físico.
+
+Um design anterior (2026-09-04) dividia isso em dois diretórios — "Casa A",
+um *repositório git separado* (`mindview-data`, sob uma conta GitHub
+dedicada) pra guardar a metade durável (settings, cadernos), versus "Casa B",
+a metade descartável e local à máquina. **Derrubado em 2026-09-05**: a
+proposta de valor inteira do MindView é "abrir e usar" — ninguém quer dar
+`git init`/clonar um repositório só pra guardar 4 preferências. Ver §2b pro
+que substituiu isso.
+
+- **`config.yaml`** — pra qual caminho de vault esta instância aponta.
+- **`settings.yaml`** — cor de destaque, tema, tipografia de leitura, mapa
+  tag→cor, o conjunto fixo de toggles (`server/src/app/houseA.ts`,
+  `DEFAULT_SETTINGS`).
+- **`cadernos/*.md`** — um arquivo por caderno. Frontmatter (`titulo`,
+  `simbolo`, `cor`, `criado`) mais uma lista de linhas
+  `- [título](mind://<caminho-relativo-ao-vault>) <!-- t: título -->`. O
+  comentário `<!-- t: -->` é um **snapshot desnormalizado do título** — ver
+  §2a abaixo pra entender por que isso importa.
+- **`session.json`** — token + porta desta execução, lido pelo plugin de
+  dev-mode do Vite pra injetar o token automaticamente (ver §7).
+- **`state.json`** — nós recentes, nós fixados, caminhos de vault recentes.
+- **`usage.jsonl`** — log de aberturas, append-only.
+
+Nada aqui é versionado, e nada aqui é lido pelo próprio agente `maintenance`
+do vault.
+
+### 2a. O risco de referenciar um vault que o MindView não controla
+
+Entradas de caderno são chaves estrangeiras pra um vault cujo conteúdo muda
+concorrentemente — o próprio engine do vault reorganiza arquivos (o §5 do
+seu `docs/ARQUITETURA.md` promove uma coleção crescente de nós relacionados
+pra pasta própria, movendo arquivos), e uma rodada de manutenção do Mind
+pode reescrever vários arquivos de uma vez. Se um caderno só guardasse um
+caminho puro, um nó renomeado ou movido desapareceria silenciosamente de
+todo caderno que o referenciasse, sem jeito de distinguir "este nó se
+moveu" de "este nó foi apagado."
+
+A mitigação, nomeada pelo ciclo `backend` e implementada em
+`server/src/app/houseA.ts`, é pequena (~20 linhas): cada entrada de caderno
+guarda `titleAtIndex`, o título do nó **como visto pela última vez na
+indexação**, junto do caminho. Quando um caminho referenciado não resolve
+mais no índice ao vivo (ver a checagem `pathSet` de `Shelf.tsx`, renderizada
+como `.is-missing`), o MindView marca o card como ausente e mostra o
+último título conhecido em vez de simplesmente derrubar a referência — ele
+nunca remove sozinho uma referência pendente. Relinkar pra onde quer que o
+nó tenha ido é um passo manual, de propósito: adivinhar por correspondência
+de título arrisca reconectar no arquivo errado.
+
+### 2b. Durabilidade via export/import, não um segundo repositório
+
+Já que não existe mais repo por trás de settings/cadernos, `server/src/app/
+backup.ts` é toda a história de durabilidade: `GET /api/backup/export`
+retorna um único arquivo JSON indentado (`{version, exportedAt, settings,
+notebooks, pinnedNodes, recentNodes}`, servido como download via header
+`Content-Disposition`) e `POST /api/backup/import` substitui settings,
+cadernos (um wipe-then-rewrite completo de `cadernos/` — nunca um merge —
+via `replaceAllNotebooks` do `houseA.ts`) e nós fixados/recentes a partir de
+um arquivo enviado. Mesmo formato do backup do app Dindin (`lib/services/
+import_export_service.dart`: "Exportar backup" / "Importar backup",
+substituição completa no import, confirmada pelo usuário antes).
+`vaultPath`/`recentVaultPaths` ficam de fora do payload de propósito — um
+backup feito numa máquina nunca deve repontar silenciosamente a instância
+rodando em outra máquina pra um caminho que pode nem existir lá.
+`session.json` e `usage.jsonl` também ficam de fora: um é segredo por
+execução, o outro é um log — nenhum dos dois é estado que vale a pena
+restaurar. A seção "Backup" da tela de Ajustes
+(`web/src/screens/SettingsScreen.tsx`) é a única UI disso — não existe
+export automático/agendado.
+
+## 3. Reindex é completo, não incremental — de propósito
+
+`domain/src/buildIndex.ts` reconstrói o `VaultIndex` inteiro (nós,
+backlinks, tag set) do zero a cada mudança, sem caminho de atualização
+parcial. Medido em **~4,1ms pra 68 arquivos / 356KB** (comentário em
+`buildIndex.ts`). Indexação incremental foi considerada e rejeitada:
+economizaria uma quantidade imensurável de tempo (4ms) enquanto introduziria
+uma classe inteira de bugs de estado obsoleto (um nó que muda quais outros
+nós apontam pra ele, uma renomeação que precisa atualizar backlinks em todo
+nó que referencia, uma checagem de staleness de índice de pasta que depende
+de todo descendente). O `VaultService`
+(`server/src/app/vaultService.ts`) trata o índice como um slot mutável único
+que é trocado por inteiro — nunca existe um estado "parcialmente
+atualizado" pra raciocinar sobre, por construção. Isso só vale porque o
+vault fica na faixa de dezenas de arquivos, parse em sub-segundo; se o
+vault crescesse duas ordens de grandeza, esse trade-off precisaria ser
+revisto.
+
+## 4. Por que `remark`, não CodeMirror
+
+O renderer é `unified` + `remark-parse` + `remark-frontmatter` +
+`remark-gfm` — exatamente o mesmo pipeline tanto no `domain` (parsing, pro
+índice) quanto no `web` (renderização, via `react-markdown` com os mesmos
+plugins remark). É um parser usado duas vezes, nunca dois independentes que
+poderiam divergir.
+
+CodeMirror 6 (o próprio engine de editor do Obsidian) foi considerado e
+rejeitado nesta versão: o próprio Obsidian ainda mantém dois modos de
+renderização separados (live-preview/CM6 pra editar, reading-view pra
+exibir) anos depois de adotar CM6 — domar seu sistema de decorations é
+trabalho real, de várias semanas, e o MindView é somente-leitura nesta
+versão, então não há superfície de edição que justificasse esse custo. O
+`remark` produz um mdast (AST de Markdown) com posições de origem de
+graça, que é exatamente o que é necessário tanto pra indexação (extração de
+link/tarefa/heading com posições — ver §5) quanto pra renderizar em
+componentes React. Adotar CM6 agora teria gasto as primeiras duas ou três
+semanas do projeto domando um editor pra uma feature (edição) que está
+explicitamente fora de escopo até uma fase futura — ver §8.
+
+## 5. Write-shaped, não write-capable
+
+O brief de produto pede que a edição volte numa fase futura, mas nada
+nesta versão escreve em conteúdo `.md`, e a posição explícita do ciclo
+`backend` foi: não escrever código de escrita não usado ("passivo e não
+testado dá falsa confiança"). O que de fato blinda um futuro editor, em vez
+disso:
+
+- **Posições de origem em toda estrutura parseada.** `HeadingInfo`,
+  `LinkInfo` e `TaskInfo` (`domain/src/types.ts`) carregam todos uma
+  `Position` (linha, coluna, offset de byte). Sem isso, uma futura feature
+  de "renomear este nó e corrigir seus ~424 links de entrada" teria que
+  reparsear-e-adivinhar onde injetar texto; com isso, vira um replace exato
+  por offset de byte.
+- **`mtime` + texto bruto guardados no índice** (`IndexedNode` estende
+  `ParsedNode` com `mtimeMs`/`size`; `ParsedNode.raw` guarda os bytes
+  originais) — um futuro escritor faria diff contra os bytes exatos lidos
+  por último, não uma reconstrução.
+- **O parsing é puro, com um único portão de IO.** Todo acesso a disco
+  passa por `server/src/io/`; não existe um segundo caminho informal que uma
+  futura feature pudesse contornar.
+- **O modelo nunca é re-serializado de volta pra Markdown.**
+  `ParsedNode.raw` é guardado verbatim exatamente pra que nada nunca precise
+  transformar um AST de volta em texto — a única representação de um
+  arquivo `.md` em toda essa base de código é seus próprios bytes originais
+  mais uma view derivada, somente leitura. (Os arquivos de caderno, na Casa
+  A, são o único lugar onde o MindView de fato serializa — ver
+  `serializeNotebook` em `houseA.ts` — mas isso é o formato de arquivo
+  *próprio* do MindView, nunca o do vault.)
+
+## 6. Hardening de rede
+
+`server/src/index.ts` roda um server `node:http` puro, sem framework. Faz
+bind só em `127.0.0.1` (nunca `0.0.0.0`) e reforça, em **toda** request
+dentro de `dispatch()`:
+
+1. **Allow-list do header Host** (`server/src/io/security.ts`,
+   `isHostAllowed`) — só `127.0.0.1`/`localhost` na porta exata em uso é
+   aceito; qualquer outra coisa é rejeitada com 403. Isso derrota DNS
+   rebinding (uma página maliciosa resolvendo um hostname pra `127.0.0.1`
+   depois que seu navegador já confia nele). É aplicado em **toda**
+   request, incluindo o shell HTML/SPA estático — não só `/api/*`. Se fosse
+   reforçado só em `/api/*`, uma página com DNS rebound ainda poderia fazer
+   fetch same-origin de `/` (o shell HTML) e ler o token embutido nele (ver
+   próximo ponto) antes mesmo da checagem de Host rodar na chamada de API em
+   si.
+2. **Token por processo**, exigido como `?token=` em toda request `/api/*`
+   (`generateToken`, `randomBytes(24)`, regenerado toda vez que o server
+   inicia — nunca persistido além do `session.json` na Casa B). Comparado
+   com `tokenFromRequest` vindo da query string; divergências levam a 403.
+3. **Nunca envia headers de CORS** (`server/src/http/respond.ts`). Acesso
+   cross-origin durante `npm run dev` passa pelo proxy do *próprio* dev
+   server do Vite — um salto HTTP Node→Node no mesmo processo, não uma
+   exceção de CORS concedida pelo navegador — então o navegador só conversa
+   com uma origem (a do Vite), e o server de verdade nunca precisa confiar
+   em origem nenhuma.
+4. **`confine()`** (`server/src/io/confine.ts`) — todo caminho derivado de
+   entrada de usuário ou de link é resolvido via `realpathSync` (seguindo
+   symlinks) e checado contra a raiz do vault antes de qualquer
+   leitura/construção de URI. Isso existe porque não é hipotético: **o
+   vault ao vivo tem 7 links que apontam pra fora da própria raiz** —
+   alvos reais de path traversal, não uma superfície de ataque teórica
+   inventada pra este doc.
+
+O próprio mecanismo de injeção de token (como o navegador recebe o token
+sem copiar/colar à mão) está coberto no §7.
+
+## 6a. Por que o `node` roda dentro do WSL
+
+O vault vive no próprio filesystem ext4 da distro WSL. Um processo nativo
+do Windows lendo por meio do caminho UNC `\\wsl$\<distro>\...` funcionaria
+pra leituras, mas **não recebe eventos `inotify`** — o file-watching teria
+que cair pra polling (`usePolling`, a válvula de escape `MINDVIEW_POLL=1`
+ainda existe em `server/src/io/watcher.ts` exatamente pra esse caso, mas
+não é o default). Rodar `node` nativamente dentro do WSL ganha `inotify`
+real de graça. Essa decisão também destrava de graça um item de fase
+futura: um terminal embutido (Fase 2, xterm.js + node-pty) pode abrir um
+shell WSL e rodar o CLI do Claude Code nativamente, sem uma ponte de
+spawn de processo via `wsl.exe` — ver §8.
+
+## 7. Ponte do token de autenticação entre os dois processos de dev
+
+Em modo dev, `server` e `web` são dois processos separados em duas portas
+separadas (4317 e 5173). O server gera um token novo a cada início (`TOKEN`
+em `server/src/index.ts`) e escreve pro `session.json` da Casa B
+(`writeSession`). O próprio plugin do Vite
+(`injectTokenPlugin` em `web/vite.config.ts`) lê esse mesmo arquivo a cada
+request de `index.html` e carimba
+`<script>window.__MV_TOKEN__=...;window.__MV_PORT__=...;</script>` no
+`<head>` antes de servir — então o navegador tem o token da execução atual
+sem passo manual nenhum. No `npm run start` (processo único), o server faz
+o mesmo carimbo sozinho quando serve o `index.html` buildado
+(`injectToken` em `server/src/index.ts`) — mesmo mecanismo, dois lugares
+diferentes emitindo o HTML dependendo de qual modo está rodando.
+
+O Vite também faz proxy de `/api/*` pro server (`server.proxy` em
+`web/vite.config.ts`), que é por isso que o modo dev nunca precisa de CORS:
+do ponto de vista do navegador só existe uma origem (a do Vite), e o salto
+Vite→server é uma request HTTP Node no mesmo processo, não um fetch
+cross-origin do navegador.
+
+## 8. O teste de fence: um caso de regressão permanente e obrigatório
+
+`domain/test/fence.test.ts` existe porque **o mesmo falso positivo já
+enganou três pessoas/agentes diferentes trabalhando neste projeto,
+independentemente** — cada um, olhando pro `docs/ARQUITETURA.md` no vault,
+viu um bloco `tags: [tag1, tag2]` / `criado: AAAA-MM-DD` e concluiu que o
+parser estava inventando tags/datas de lixo. Em todos os casos a explicação
+real foi a mesma: aquele bloco é um **exemplo de documentação do formato de
+frontmatter, escrito dentro de um bloco de código com fence ` ```yaml `**,
+não frontmatter de verdade. A linha 1 de verdade do arquivo é um heading
+`# `, não `---`.
+
+Por que isso continua se repetindo: o `remark-frontmatter` só reconhece um
+bloco `---` quando ele é a primeiríssima coisa no documento — nunca no meio
+do documento, e nunca dentro de uma fence (fences são tokenizadas como seu
+próprio tipo de bloco antes mesmo de frontmatter ser considerado). Isso está
+exatamente certo, mas significa que qualquer extrator ingênuo no estilo
+`grep ^tags:`, ou um humano lendo o texto bruto de cima pra baixo, vai achar
+o exemplo em fence primeiro e interpretar errado como frontmatter.
+`domain/src/parse.ts` acerta isso (só conta se `tree.children[0]` for um nó
+mdast do tipo `yaml`), e o `fence.test.ts` trava esse comportamento
+permanentemente contra exatamente essa forma de exemplo em fence, mais um
+segundo caso relacionado: `claude-user/skills/mind/SKILL.md`, que tem
+frontmatter **de verdade** (`name`/`description`) mas sem chave `tags`,
+então precisa classificar como `claude-asset`, não `mind-node`, e precisa
+contribuir zero tags pro tag set do vault.
+
+**Quem for mexer em `parse.ts`, `buildIndex.ts`, ou na lógica de detecção
+de frontmatter precisa rodar o `fence.test.ts` e entender por que cada
+assertion existe antes de mudar comportamento em torno de fences ou
+detecção de frontmatter.**
+
+## 9. Falhas de teste conhecidas / débito técnico
+
+Rodar `npm run test -w domain` originalmente mostrava **4 testes falhando,
+todos drift de conteúdo no vault, não bugs de parser** — confirmado
+reparseando à mão os arquivos atuais do vault e inspecionando a divergência
+manualmente, não assumido. Duas dessas quatro (9a) já foram corrigidas
+direto no vault (fora do controle deste projeto, mas vale registrar já que
+aconteceu) — **restam 2 falhas hoje (9b, 9c)**. **Não conserte essas
+editando o vault nem hardcodando em torno do conteúdo atual** — os fixes
+abaixo são pra uma rodada futura, e são sobre tornar os testes robustos a
+edição normal do vault, não sobre o parser estar errado hoje.
+
+### 9a. `claude-user/skills/mind/SKILL.md` classificado errado como `engine-doc` — CORRIGIDO em 2026-09-05
+
+O frontmatter do `SKILL.md` do vault tinha, dentro do campo `description:`,
+um trecho no formato `no Mind: decidir...` — um dois-pontos-espaço dentro
+de um scalar YAML **sem aspas**. O YAML lê `chave: valor` dentro daquele
+scalar como uma tentativa de mapeamento aninhado e falhava com `mapping
+values are not allowed here`. O `parseYaml(yamlNode.value)` de `parse.ts`
+lançava, `problems` ganhava uma entrada `frontmatter-parse-error`, e
+`frontmatter` caía pra `null` — o que fazia `detectKind` classificar o
+arquivo como `engine-doc` (sem frontmatter) em vez de `claude-asset`
+(frontmatter presente, sem chave `tags`). Duas assertions em
+`fence.test.ts` falhavam por causa dessa única causa raiz. Não era bug do
+MindView, e estava fora do escopo deste projeto corrigir diretamente — mas
+foi corrigido mesmo assim: o valor de `description:` agora está entre
+aspas tanto em `mind/claude-user/skills/mind/SKILL.md` quanto no espelho no
+`mind-template`, achado e corrigido enquanto trabalhava o backlog do
+MindView (ver `mind/tarefas/empresa/mindview.md`). O `npm run test -w
+domain` reflete isso: 27/31 → 29/31.
+
+### 9b. Número de linha hardcoded na assertion sobre `docs/ARQUITETURA.md`
+
+`fence.test.ts` afirma `bytes.split('\n')[77] === '---'` (índice 77
+base-zero, ou seja linha 78) pra checar que um `---` no meio do documento
+nunca é confundido com frontmatter. O `docs/ARQUITETURA.md` do vault
+cresceu uma linha acima desse ponto (uma regra de "crescimento orgânico"
+ficou mais longa) desde que o teste foi escrito, então o `---` que o teste
+espera agora está numa linha diferente — a assertion em si é frágil, não o
+parser: ela hardcoda uma posição absoluta num documento que legitimamente
+muda com o tempo.
+
+### 9c. Contagem de tarefas não-zero na mesma fixture de exemplo em fence
+
+O mesmo crescimento de conteúdo em `docs/ARQUITETURA.md` deu ao documento
+mais listas de bullets de verdade em outros pontos. A extração de tarefas
+de `domain/src/parse.ts` (`collectTasks`/`parseTask`) trata **todo item de
+lista** como uma linha de tarefa (estado `open` por padrão, `done`/`paused`
+só pra checkboxes reais `- [x]`/`- [~]`) — isso é intencional (é o que faz
+a detecção de `[~]` funcionar, já que o remark-gfm não reconhece `[~]` como
+checkbox), mas significa que qualquer lista de bullets num arquivo
+`engine-doc` também produz "tarefas" no nó parseado, mesmo que o
+`buildBoard` (`domain/src/selectors.ts`) só exponha tarefas de arquivos do
+tipo `mind-node`, então isso nunca chega na UI de verdade. O teste que
+afirma "esta fixture tem zero tarefas" está na verdade afirmando "este
+exemplo específico em fence não vaza pra extração de tarefas", mas também
+acaba contando os bullets reais e não relacionados do arquivo, e agora vê
+30 em vez de 0.
+
+### Fix sugerido pra uma futura rodada do `backend` (não implementado aqui)
+
+1. **Expor `frontmatter-parse-error` em vez de virar silenciosamente
+   `null`/`engine-doc`.** `ParsedNode.problems` já existe exatamente pra
+   isso (`domain/src/types.ts`) e já é populado em `parse.ts` — no momento
+   desta escrita, nada em `server` ou `web` lê isso (confirmado com grep
+   nos dois workspaces por `problems`). Um `console.warn` do lado do
+   server quando um nó tem um array `problems` não-vazio, e/ou um pequeno
+   indicador "N problemas de parse" exposto em algum lugar da tela
+   Console, tornaria essa classe de bug visível na hora em vez de
+   silenciosamente reclassificar o `kind` de um nó.
+2. **Parar de hardcodar a checagem de `---` no meio do documento no
+   `fence.test.ts` num índice de linha absoluto.** Buscar pelo conteúdo ou
+   posição real do nó mdast `<hr>`/`thematicBreak` relativo a uma âncora
+   conhecida (ex.: "o segundo `thematicBreak` do documento, onde quer que
+   caia") em vez de `bytes.split('\n')[77]`, pra que edição normal do vault
+   não quebre esse teste.
+
+Nenhum dos dois foi implementado como parte desta rodada de documentação —
+são escopo de um futuro ciclo `backend`, conforme o brief da tarefa.
+
+## 10. Placeholder do grafo: por que fica por último
+
+A tela do Grafo é entregue como um placeholder literal "Graph — em breve",
+confirmado pelo Felipe especificamente pra tela não parecer vazia/mal
+acabada. Isso não é um adiamento de agenda — o stress-test do
+`orchestrator` achou que o vault de fato tem pouco pra desenhar: 67
+arquivos `.md`, zero wikilinks (o próprio `ARQUITETURA.md` do vault
+proíbe), e 424 links relativos que são quase todos pares índice↔nó (formato
+de árvore, não de grafo). A camada de dependência real que vale a pena
+visualizar tem ~6 arquivos e ~8 arestas. Quando for construído, a
+customização planejada é: colorir pela tag *última* (a mais específica) em
+vez da primeira (que é o nome da pasta em ~93% dos nós, então "cor pela
+primeira tag" seria só "cor por diretório", nenhuma informação nova), e
+tamanho do nó por contagem de backlinks em vez de links totais (senão
+arquivos de índice dominariam como bolas gigantes).
+
+## 11. Fora de escopo nesta versão, e por quê
+
+Listado pra ninguém reabrir isso como "isso foi só esquecido?" — cada item
+foi uma decisão deliberada, não um descuido:
+
+- **Empacotamento em Electron.** O MindView é um app web local (Vite + um
+  server Node) hoje; Electron é adiado até que se queira de fato um
+  ícone/janela de app, já que nem o seletor de caminho do vault nem o
+  terminal da Fase 2 precisam dele de verdade — um diálogo nativo do
+  Explorer é a única coisa que Electron adicionaria de graça agora, e
+  digitar/colar um caminho mais uma lista de "recentes" (espelhando como o
+  próprio trocador de vault do Obsidian funciona) cobre a mesma necessidade
+  sem o custo de empacotamento.
+- **Um terminal embutido.** Planejado pra uma fase posterior (xterm.js +
+  node-pty, rodando o CLI do Claude Code dentro do app) — deliberadamente
+  mais fácil nesse setup web-local + WSL do que seria em Electron
+  (`node-pty` precisa de `electron-rebuild` contra o ABI do Electron; aqui
+  ele só compila normal, e o PTY pode abrir um shell WSL diretamente em vez
+  de atravessar uma ponte `wsl.exe` a partir de um processo Electron nativo
+  do Windows). Ainda não iniciado; a única coisa mantida em aberto pra isso
+  é uma fronteira de módulo de transporte abstrata, já que o `/api/events`
+  de hoje é SSE (só server→client) e um terminal precisa de um canal
+  bidirecional (provavelmente WebSocket) depois.
+- **Um editor de conteúdo de verdade.** O brief de produto quer um editor
+  estilo Obsidian/VS Code eventualmente, mas esta versão é deliberadamente
+  somente-leitura — ver §5 pro que já está no lugar pra tornar isso mais
+  seguro de adicionar depois, e por que nada aqui está meio construído
+  agora.
+- **Upload de imagem de capa pros cadernos.** Cadernos do MVP usam um
+  conjunto curado de glifos monocromáticos (sem emoji, sem upload de
+  imagem) — uma superfície menor e controlada do que "qualquer imagem",
+  adiada em vez de cortada.
+- **Um grafo interativo/force-directed de verdade.** Ver §10 — ainda não
+  há estrutura de grafo suficiente no vault hoje pra justificar o custo, e
+  um placeholder evita que a tela pareça quebrada/vazia nesse meio tempo.
+- **CSS arbitrário/snippets/temas de terceiros.** Ajustes expõe um
+  conjunto fixo e curado de controles de aparência (destaque, cor de link,
+  tema, tipografia de leitura, cores de tag, alguns toggles) —
+  explicitamente não uma superfície estilo Obsidian de "instale qualquer
+  snippet de CSS". Isso evita que a identidade visual do app (ver
+  `docs/DESIGN.md`) se corroa por customização.
+- **Sincronização em nuvem, mobile, contas, API paga.** Desktop-only,
+  local-only, single-user por construção — não há estado do lado servidor
+  que assuma mais de uma pessoa usando uma máquina.

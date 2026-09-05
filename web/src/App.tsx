@@ -4,7 +4,7 @@ import { QuickSwitcher } from './components/QuickSwitcher';
 import { Reader } from './screens/Reader';
 import { Shelf } from './screens/Shelf';
 import { Console } from './screens/Console';
-import { GraphPlaceholder } from './screens/GraphPlaceholder';
+import { GraphScreen } from './screens/GraphScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { useHashRoute } from './lib/hashRoute';
 import { TreeProvider } from './context/TreeContext';
@@ -38,7 +38,7 @@ export default function App() {
             {route.screen === 'read' && <Reader path={route.param} />}
             {route.screen === 'estante' && <Shelf notebookKey={route.param} />}
             {route.screen === 'console' && <Console />}
-            {route.screen === 'grafo' && <GraphPlaceholder />}
+            {route.screen === 'grafo' && <GraphScreen />}
             {route.screen === 'ajustes' && <SettingsScreen />}
           </div>
         </div>

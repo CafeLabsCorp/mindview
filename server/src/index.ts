@@ -22,6 +22,7 @@ import { extname, join, dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   buildBoard,
+  buildGraph,
   buildTree,
   computeStaleIndexes,
   listBrokenLinks,
@@ -123,6 +124,10 @@ router.get('api/board', ({ res }) => {
     builtAt: index.builtAt,
     buildMs: index.buildMs,
   });
+});
+
+router.get('api/graph', ({ res }) => {
+  sendJson(res, 200, buildGraph(vaultService.index));
 });
 
 router.get('api/settings', ({ res }) => {

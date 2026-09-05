@@ -5,6 +5,8 @@
 export type {
   BacklinkEntry,
   BoardRow,
+  GraphEdge,
+  GraphNode,
   HeadingInfo,
   IndexedNode,
   LinkInfo,
@@ -13,6 +15,7 @@ export type {
   SearchHit,
   TaskInfo,
   TaskState,
+  VaultGraph,
 } from '@mindview/domain';
 import type { TreeNode as DomainTreeNode } from '@mindview/domain';
 export type TreeNode = DomainTreeNode;

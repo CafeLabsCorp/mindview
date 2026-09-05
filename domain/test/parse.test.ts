@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseNode } from '../src/parse.js';
 import { buildIndex } from '../src/buildIndex.js';
-import { computeStaleIndexes, listBrokenLinks, listOutsideVaultLinks, search } from '../src/selectors.js';
+import { buildGraph, computeStaleIndexes, listBrokenLinks, listOutsideVaultLinks, search } from '../src/selectors.js';
 import { slugifyHeading } from '../src/slugify.js';
 
 describe('frontmatter + kind detection', () => {
@@ -139,6 +139,34 @@ describe('buildIndex: backlinks + broken/outside links + staleness', () => {
   it('flags a folder index as stale when a child was updated more recently', () => {
     const stale = computeStaleIndexes(index);
     expect(stale.has('idx/idx.md')).toBe(true);
+  });
+});
+
+describe('buildGraph', () => {
+  const a = { path: 'a.md', bytes: '---\ntags: [proj, x]\n---\n# A\n\n[b](b.md) e de novo [b](b.md#sec)\n[ext](https://x.com)\n', mtimeMs: 1, size: 1 };
+  const b = { path: 'b.md', bytes: '---\ntags: [proj]\n---\n# B\n\n[volta pra a](a.md)\n[eu mesmo](b.md)\n', mtimeMs: 1, size: 1 };
+  const c = { path: 'c.md', bytes: '---\ntags: [proj]\n---\n# C sozinho', mtimeMs: 1, size: 1 };
+  const graph = buildGraph(buildIndex([a, b, c]));
+
+  it('has one node per indexed file', () => {
+    expect(graph.nodes.map((n) => n.path).sort()).toEqual(['a.md', 'b.md', 'c.md']);
+  });
+
+  it('collapses A→B, B→A and duplicate links into a single undirected edge', () => {
+    expect(graph.edges).toHaveLength(1);
+    const [e] = graph.edges;
+    expect([e.from, e.to].sort()).toEqual(['a.md', 'b.md']);
+  });
+
+  it('drops external links and self-links', () => {
+    // only edge is a.md<->b.md; the https link and b.md->b.md never appear
+    expect(graph.edges.some((e) => e.from.startsWith('http') || e.to.startsWith('http'))).toBe(false);
+  });
+
+  it('sizes by inbound references (backlinkCount), not outbound links', () => {
+    const byPath = Object.fromEntries(graph.nodes.map((n) => [n.path, n]));
+    expect(byPath['b.md'].backlinkCount).toBe(1); // a.md -> b.md
+    expect(byPath['c.md'].backlinkCount).toBe(0);
   });
 });
 

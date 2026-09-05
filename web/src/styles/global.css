@@ -1004,23 +1004,160 @@ input[type='color']::-moz-color-swatch {
   background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
-/* --------------------------------------------------------- grafo/settings */
+/* ---------------------------------------------------------------- grafo */
 
-.placeholder-screen {
+.graph-screen-outer {
+  display: flex;
+  flex-direction: column;
   height: 100%;
+  min-height: 0;
+}
+.graph-canvas {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+  cursor: grab;
+}
+.graph-canvas:active {
+  cursor: grabbing;
+}
+.graph-svg {
+  display: block;
+  user-select: none;
+}
+.graph-status {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
-  gap: 10px;
   color: var(--subtle);
-}
-.placeholder-screen .glyph {
   font-family: var(--font-mono);
-  font-size: 48px;
-  color: var(--accent);
-  opacity: 0.5;
+  font-size: 13px;
 }
+
+.graph-edge {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.graph-edge.is-dim {
+  stroke: color-mix(in srgb, var(--border) 40%, transparent);
+}
+.graph-node {
+  cursor: pointer;
+}
+.graph-node-dot {
+  stroke: var(--bg);
+  stroke-width: 1.5;
+  transition: opacity 0.12s ease;
+}
+.graph-node.is-hovered .graph-node-dot {
+  stroke: var(--fg);
+  stroke-width: 2;
+}
+.graph-node.is-dim {
+  opacity: 0.25;
+}
+.graph-node-label {
+  fill: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.graph-node.is-hovered .graph-node-label {
+  fill: var(--fg);
+}
+
+.graph-controls {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  backdrop-filter: blur(3px);
+}
+.graph-controls label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+.graph-controls-sub {
+  display: flex;
+  gap: 5px;
+  padding-left: 20px;
+}
+.graph-controls-sub[data-off='true'] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.graph-controls .chip {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.graph-controls .chip:hover {
+  color: var(--fg);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.graph-controls .chip.is-on {
+  color: var(--fg);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.graph-count {
+  color: var(--subtle);
+  font-size: 11px;
+  padding-top: 2px;
+  border-top: 1px solid var(--border);
+}
+
+.graph-hover-card {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  max-width: 340px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+}
+.graph-hover-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--fg);
+}
+.graph-hover-path,
+.graph-hover-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--subtle);
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------- settings */
 
 .settings-screen {
   padding: 28px 32px;

@@ -1,0 +1,21 @@
+{
+  "name": "mindview",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "domain",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "build:web": "npm run build -w web",
+    "start": "npm run build:web && npm run start -w server",
+    "dev": "concurrently -k -n web,server -c cyan,green \"npm run dev -w web\" \"npm run dev -w server\"",
+    "test": "npm run test -w domain && npm run test -w server",
+    "lint": "npm run lint -w web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.6.3"
+  }
+}

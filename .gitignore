@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+npm-debug.log*
+
+# per-machine build artifacts / local overrides, not source
+.env
+.env.local

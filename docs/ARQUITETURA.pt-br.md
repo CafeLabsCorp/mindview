@@ -386,32 +386,90 @@ ocorrência de link, incluindo repetidos e self-links) — é por isso que a
 tela dimensiona os nós, deliberadamente não por contagem de links de saída
 (um nó de índice aponta pra tudo e dominaria).
 
-**Layout — `web/src/lib/graphLayout.ts`.** Uma pequena simulação de força
-escrita à mão (repulsão sobre todos os pares + mola ao longo das arestas +
-gravidade fraca pro centro), rodada 1× por grafo dentro de um `useMemo`, não
-animada quadro a quadro. Com ~70 nós o passo O(n²) é sub-milissegundo, então
-não tem quadtree Barnes-Hut nem dependência de `d3-force` (o bundle cresceu
-~6 KB pra tela inteira). Um PRNG com seed (mulberry32) deixa o layout
-estável entre reloads.
+**Modelo de render — `web/src/lib/graphModel.ts`.** O grafo do servidor é só
+de arquivos; o modelo *renderizável* é derivado na camada web (mantido fora
+do `domain` pro selector e seus testes continuarem sendo sobre o vault, não
+sobre como ele é desenhado). Opcionalmente adiciona um nó por tag distinta
+com uma aresta pra cada arquivo que a carrega, aí aplica os Filtros (busca,
+órfãos on/off, tags on/off) e resolve a cor final de cada nó (uma query de
+**grupo** que casa ganha da paleta de tag) e o raio.
 
-**Tela — `web/src/screens/GraphScreen.tsx`.** SVG, com um `<g transform>`
-pro pan (arrastar o fundo) / zoom (scroll, em direção ao cursor). Clicar num
-nó → abre ele no Leitor (suprimido se o ponteiro se moveu, pra um pan não
-navegar). Hover → destaca o nó e os vizinhos diretos, esmaece o resto.
-Controles, salvos por navegador em `localStorage` (`mindview.graphPrefs.v1`,
-ver `web/src/lib/graphPrefs.ts`):
+**Simulação — `web/src/lib/graphSim.ts`.** Uma simulação [`d3-force`][d3f]
+viva, avançada na mão pelo loop de `requestAnimationFrame` da tela
+(`sim.stop()` na construção, `sim.tick()` por quadro) pra o React ser dono
+do quadro e o loop poder ficar ocioso assim que o `alpha` cai abaixo de
+`alphaMin` e nada mais está animando. Isso **reverte a decisão anterior** de
+escrever à mão um layout estático de uma passada só (`graphLayout.ts`,
+deletado): o grafo agora é uma coisa que você agarra, e "reiniciar" o
+re-aquece — isso exige uma simulação de verdade rodando, e o `d3-force`
+(~11 KB gzipado) é o motor que o grafo do Obsidian essencialmente replica.
+O `GraphSim` também é dono do **estado de entrada/saída** de nós e arestas:
+um valor linear `p ∈ [0,1]` de presença por item que o render transforma em
+opacidade + escala com easing, pra mudança de filtro dar fade em vez de
+pop. As forças são fixas (sem painel "Forces"): repulsão many-body escalada
+pelo raio do nó, distância/força de link por tipo (arquivo↔arquivo vs.
+arquivo↔tag), `forceX/Y` de centralização suave, `forceCollide`.
 
-- **Cor por tag** — `last` (mais específica) ou `first`. `last` é o default
-  porque a primeira tag é o nome da pasta em ~93% dos nós, então "cor pela
-  primeira tag" é só "cor por diretório". A cor vem do mapa
-  `settings.tagColors` do Ajustes se a tag estiver nele, senão de um hash
-  estável numa paleta ANSI de terminal **sem verde** (`web/src/lib/tagPalette.ts`)
-  — o verde fica reservado pro accent do app, mesma regra das pills de
-  leitura.
-- **Tamanho por backlinks** — on/off; raio ≈ `4.5 + √backlinkCount · 2.4`.
-- **Rótulos** — off por padrão; rótulos de nó em hover/vizinhança sempre
-  aparecem.
-- **Recentralizar** — recomputa a transformação de "caber no conteúdo".
+**Tela — `web/src/screens/GraphScreen.tsx`.** SVG sob um `<g transform>` pro
+pan / zoom (scroll em direção ao cursor). Arrastar o fundo dá pan; arrastar
+um **nó** move ele (fixado via `fx/fy` enquanto segurado, `alphaTarget`
+elevado pros vizinhos acompanharem, solto no pointer-up). Clicar num nó (sem
+arrastar) → abre no Leitor. Hover → destaca o nó + vizinhos diretos, esmaece
+o resto (com transição CSS). A view **enquadra sozinha** o grafo enquanto
+ele assenta, até o primeiro pan/zoom/drag manual; o botão ⊙ faz tween de
+volta pra esse enquadre, o ↻ reinicia a simulação — não um simples bump de
+alpha, e sim um **re-crescimento encenado**: as posições são re-semeadas, o
+grafo esvazia (nós de tag inclusive — o Obsidian mantém os dele na tela, aqui
+não) e volta um nó de cada vez. A ordem é órfãos primeiro, depois busca em
+largura a partir do nó mais conectado de cada componente, vizinho mais
+movimentado primeiro; uma aresta espera as duas pontas. O intervalo por nó é
+a pref `revealStepMs` (0–150 ms, default 20; `0` pula o escalonamento e o
+grafo volta inteiro de uma vez) — antes era derivado da contagem de nós e
+virou um slider, já que o ritmo certo é questão de gosto, não de aritmética.
+A ordem é determinística (empate resolve por grau, depois por id), então o
+mesmo grafo sempre se monta igual.
+Rótulos seguem o "text
+fade threshold" do Obsidian: escondidos com zoom afastado, surgindo passado
+um zoom que o slider controla, e sempre visíveis **só pro nó sob o mouse** —
+estender isso pros vizinhos (o que a tela pré-rework fazia) é inviável com
+tags como nós, já que passar o mouse numa tag hub gritaria o nome de todo
+arquivo que a carrega. A vizinhança continua destacada, por não ser
+esmaecida em vez de por ser rotulada.
+Controles (`web/src/screens/GraphControls.tsx`), salvos por
+navegador em `localStorage` (`mindview.graphPrefs.v2`, ver
+`web/src/lib/graphPrefs.ts`):
+
+- **Aparência** — *cor por tag* é um liga/desliga só. **Ligado**, o nó pega a
+  cor da **primeira** tag dele, do mapa `settings.tagColors` do Ajustes,
+  senão de um hash estável numa paleta ANSI de terminal **sem verde**
+  (`web/src/lib/tagPalette.ts`). **Desligado**, o grafo cai na identidade do
+  mind-landing — verde + branco: nós de arquivo em `var(--accent)`, nós de
+  tag em `var(--fg)`. (Havia um par de chips "mais específica / primeira";
+  cortado porque a distinção nunca se explicava na tela, e a primeira tag —
+  nome da pasta em ~93% dos nós — é o que faz o grafo ler como regiões de
+  cor em vez de confete.) Também: tamanho por backlinks on/off; tamanho
+  chapado pro nó de tag; setas on/off (desenhadas na direção armazenada do
+  link — aproximado, já que a aresta do domain é deduplicada/não-direcionada);
+  sliders de tamanho de nó, tamanho de tag, espessura de linha e limiar de
+  rótulo.
+- **Filtros** — busca (prefixos `tag:` / `path:` ou substring), *tags como
+  nós* on/off, *órfãos* on/off. "Existing files only" e "attachments" do
+  painel do Obsidian não se aplicam: o vault é read-only, não tem anexo, e o
+  engine dele proíbe link não-resolvido.
+- **Grupos** — colore um subconjunto por uma query de busca, estilo
+  Obsidian; um match ganha da paleta de tag pra aquele nó.
+- **Restaurar padrão** no rodapé do painel devolve toda pref pro
+  `DEFAULT_GRAPH_PREFS` e reativa o auto-enquadre.
+
+Um **nó de tag** é desenhado como um ponto preenchido na cor da própria tag
+mais um anel de halo — o anel, não um centro vazado, é o que distingue ele
+de um nó de arquivo. O mesmo mapa `tagColors` (com o mesmo fallback de hash
+`autoColorForTag`) também alimenta as pills de tag do Leitor, então uma tag
+tem uma cor só em todo lugar; as pills caíam num `var(--blue)` chapado pra
+qualquer tag que o usuário não tivesse colorido, o que deixava todas iguais
+ao lado de um grafo que dava um tom pra cada.
+
+[d3f]: https://github.com/d3/d3-force
 
 ## 11. Fora de escopo nesta versão, e por quê
 

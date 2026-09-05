@@ -47,9 +47,21 @@ Ajustes.
 | `--subtle` | `#8a887f` | `#898781` | texto terciário, legendas |
 | `--border` | `rgba(255,255,255,.1)` | `rgba(11,11,11,.1)` | bordas |
 | `--green` | `#3fb950` | `#1a7f37` | **o accent** — CTAs, estado ativo, prompt, os nós-hub de índice do grafo |
-| `--blue` | `#5b9eea` | `#1e5aa8` | accent secundário (ganhou uso real aqui — era um token não usado, `TODO: confirmar`, no `mind-landing`) |
 | `--danger` | `#f0655c` | (igual) | links quebrados, o guarda-corpo de contraste |
 | `--radius` | `14px` | | raio de canto padrão |
+
+**Não existe `--blue`, de propósito.** Um ciclo anterior promoveu o azul
+não-usado (`TODO: confirmar`) do `mind-landing` a "accent secundário" e
+gastou ele em três lugares — o pontinho de `engine-doc` na árvore, o
+checkbox de `[~]` pausado e o badge de pausado do Console — mais um fallback
+de cor pras pills de tag sem cor. Azul nunca fez parte da identidade do Mind
+(que é verde + branco); o token foi removido e esses quatro usos
+reatribuídos: o ponto de engine-doc pro `--fg`, os dois estados de pausado
+pro `--muted` (pausado lê como *parado*, mais apagado que o `--fg` de uma
+tarefa aberta, e sem risco de confundir com o `--accent` de concluída), e as
+pills de tag pra mesma paleta com hash que o grafo usa. Um azul **ainda
+pode** aparecer na tela — mas só como cor que o usuário escolheu pra uma tag
+no Ajustes, ou como uma entrada da paleta ANSI de tags.
 
 `--on-code` / `--on-code-subtle` / `--on-code-accent` são **fixos, nunca
 invertidos pelo tema**, usados só em cima de superfícies `--code-bg`. Esses
@@ -146,8 +158,17 @@ Sem biblioteca de animação dedicada — este app não tem nenhuma das
 sequências de reveal/typewriter disparadas por scroll do `mind-landing`
 (não há narrativa de marketing com scroll pra animar). Feedback de
 interação (estados de hover/ativo, o modal do quick-switcher, arrastar e
-soltar num caderno) usa transições CSS simples consistentes com o resto do
-sistema de tokens; nada aqui lê `prefers-reduced-motion` ainda, diferente do
-tratamento explícito que o `mind-landing` dá a isso — uma lacuna que vale a
-pena fechar se alguma animação futura for adicionada, não uma decisão
-tomada de propósito.
+soltar num caderno, a árvore/nav recolhível) usa transições CSS simples
+consistentes com o resto do sistema de tokens.
+
+A **tela do Grafo** é o único lugar com movimento contínuo: uma simulação
+`d3-force` viva, mais uma regra de que *toda entrada e saída tem easing,
+nunca um pop* — nós e arestas dão fade + escala ao entrar/sair quando um
+filtro muda (controlado em JS a partir do `graphSim.ts`, então é
+independente de frame-rate), rótulos fazem cross-fade no limiar de zoom e no
+hover, painéis animam abrir/fechar (`grid-template-rows: 0fr → 1fr`), e
+"recentralizar" faz tween da viewport em vez de pular. As transições CSS do
+grafo e o keyframe do card de hover estão dentro de
+`@media (prefers-reduced-motion: reduce)`; o resto do app ainda não lê essa
+flag — uma lacuna que vale a pena fechar se mais animação for adicionada,
+não uma decisão tomada de propósito.

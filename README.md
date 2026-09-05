@@ -35,6 +35,7 @@ narrative if you need the "why" behind a decision not covered here.
 | Server | Plain `node:http` (no framework), TypeScript, `tsx` for dev/run |
 | File watching | `chokidar` |
 | Web | Vite + React 19 |
+| Graph | `d3-force` (layout only — SVG render + interaction are hand-written) |
 | Fonts | Space Grotesk (display), Inter (body), JetBrains Mono (terminal/code/metadata) — self-hosted via `@fontsource/*` |
 | Tests | Vitest, one suite per workspace |
 
@@ -110,15 +111,22 @@ notebooks, pinned nodes) can be exported/restored from the Ajustes screen's
 ## Tests
 
 ```bash
-npm run test          # domain + server (root script)
-npm run test -w web   # web has its own vitest config; not wired into the root script yet
+npm run check       # typecheck + all three suites + build:web — the full gate
+npm run test        # all three suites
+npm run typecheck   # tsc --noEmit in all three workspaces
+npm run test -w web # a single workspace
 ```
 
 | Workspace | Status | What it covers |
 | --- | --- | --- |
 | `domain` | 36/36 passing | parser, index builder, selectors (search, board, staleness, broken/outside links, orphans, graph) |
 | `server` | 10/10 passing | end-to-end HTTP tests against a disposable vault fixture |
-| `web` | 5/5 passing | includes the real WCAG contrast guard-rail (`src/lib/contrast.test.ts`) |
+| `web` | 34/34 passing | WCAG contrast guard-rail (`src/lib/contrast.test.ts`), the graph render model + filters/groups (`graphModel.test.ts`), the force-sim reconciliation across model swaps (`graphSim.test.ts`), and a jsdom render of the whole graph screen (`screens/GraphScreen.test.tsx`) |
+
+There is no linter — no ESLint/Prettier/Biome is installed and none was
+configured. `tsc --noEmit` (via `npm run typecheck`) is the only static
+check. A root `lint` script used to point at a `lint` script the `web`
+workspace never had; it was removed rather than left broken.
 
 The `domain` suite had four vault-drift failures through early 2026-09-05;
 all are resolved. Two were a broken `SKILL.md` frontmatter line + a
@@ -156,7 +164,7 @@ mindview/
         ├── context/     # TreeContext, SettingsContext, ReindexContext, AppStateEvents
         ├── api/         # client.ts, types.ts — thin fetch wrapper + shared response shapes
         ├── lib/         # hashRoute.ts, contrast.ts (WCAG), remarkTaskStates.ts, useThemeColors.ts,
-        │                # graphLayout.ts (hand-rolled force layout), tagPalette.ts, graphPrefs.ts,
+        │                # graphSim.ts (live d3-force sim), graphModel.ts, tagPalette.ts, graphPrefs.ts,
         │                # tocCollapsed.ts / treeOpenState.ts (per-browser UI state)
         └── styles/      # tokens.css (identity, see docs/DESIGN.md), global.css
 ```
@@ -171,15 +179,17 @@ reused unmodified if a second frontend (or a CLI) is ever built on top.
 Four tabs in the sidebar (none is "the home screen") plus the Reader, which
 isn't a tab — see "Post-launch polish" below for why:
 
-1. **Grafo** — a force-directed graph of the vault: one dot per node, an
-   undirected edge per resolved internal link (`GET /api/graph` →
-   `domain/buildGraph`). Pan (drag) / zoom (wheel), click a node to open it
-   in the Reader, hover to highlight its neighbourhood. Controls (persisted
-   per browser): colour by most-specific or first tag — reusing the Ajustes
-   tag→colour map, with an auto ANSI-palette fallback for uncoloured tags —
-   node size by backlink count, labels on/off, recenter. The layout is a
-   small hand-rolled force simulation (no d3 — the vault is ~70 nodes); see
-   [docs/ARQUITETURA.md](docs/ARQUITETURA.md#10-the-graph-screen). Listed
+1. **Grafo** — an Obsidian-style live graph of the vault: one dot per node
+   (`GET /api/graph` → `domain/buildGraph`), plus an optional node per tag,
+   laid out by a running [`d3-force`](https://github.com/d3/d3-force)
+   simulation you can grab. Pan / zoom, **drag nodes**, click to open in the
+   Reader, hover to highlight the neighbourhood; ↻ restarts the simulation,
+   ⊙ re-frames. Labels reveal on zoom (Obsidian's "text fade threshold") and
+   on hover. Collapsible panels (persisted per browser): **Filtros** (search,
+   tags-as-nodes, orphans), **Grupos** (colour a query-matched subset),
+   **Aparência** (colour by tag, size by backlinks, arrows, and node-size /
+   link-thickness / label-threshold sliders). Every enter/exit is animated.
+   See [docs/ARQUITETURA.md](docs/ARQUITETURA.md#10-the-graph-screen). Listed
    first in the sidebar by explicit choice, even though it was built last.
 2. **Estante** (Shelf) — a shelf of notebooks (cadernos); each notebook is a
    curated set of node *references* (drag a node in, it doesn't move
@@ -301,6 +311,38 @@ Later the same day, three more fixes and the last MVP screen:
   scroll.
 - **Grafo**: the placeholder is gone — see "Screens" above and
   [docs/ARQUITETURA.md §10](docs/ARQUITETURA.md#10-the-graph-screen).
+
+### Graph rework — Obsidian-style (2026-09-05)
+
+The first graph was a one-shot static layout. Reworked to match Obsidian's
+graph view (minus adjustable forces), then refined over several rounds of
+live feedback. `domain` was never touched — tag nodes and all filtering live
+in the new `web/src/lib/graphModel.ts`, so the vault selector and its tests
+stay about the vault. Prefs moved to `mindview.graphPrefs.v2`. Full
+architecture in [docs/ARQUITETURA.md §10](docs/ARQUITETURA.md#10-the-graph-screen),
+full narrative in `mind/tarefas/empresa/mindview.md`.
+
+- **Live simulation.** The hand-rolled layout is replaced by
+  [`d3-force`](https://github.com/d3/d3-force) (`web/src/lib/graphSim.ts`),
+  ticked from the screen's `requestAnimationFrame` loop. Nodes are draggable.
+- **↻ is a staged re-growth**, not an alpha bump: the graph empties (tag
+  nodes included) and returns one node at a time — orphans first, then
+  breadth-first from each component's busiest hub, with edges waiting for
+  both endpoints. The gap between nodes is a slider (`revealStepMs`, 0 turns
+  the stagger off).
+- **Tags are real nodes** (toggle), all one configurable size — size on this
+  screen means "how linked-to is this note", so a popular tag shouldn't read
+  as a hub.
+- **Labels** show on the hovered node only, plus a zoom reveal (Obsidian's
+  "text fade threshold"). Labelling the hovered node's *neighbours* too —
+  what the pre-rework screen did — is unusable once tags are nodes.
+- **Panels**: Aparência / Filtros / Grupos, collapsible, with a
+  "Restaurar padrão".
+- **Colour** is one checkbox: on → the node's first tag's colour; off → the
+  mind-landing identity, file nodes in the accent and tag nodes in white.
+- **Every enter and exit is eased** — nodes and edges fade + scale in JS
+  (frame-rate independent), labels and panels via CSS transitions, and
+  "recenter" tweens rather than jumps.
 
 ## Naming
 

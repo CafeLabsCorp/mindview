@@ -36,6 +36,7 @@ narrativa completa se precisar do "porquê" de uma decisão não coberta aqui.
 | Server | `node:http` puro (sem framework), TypeScript, `tsx` pra dev/run |
 | File watching | `chokidar` |
 | Web | Vite + React 19 |
+| Grafo | `d3-force` (só o layout — render SVG + interação são escritos à mão) |
 | Fontes | Space Grotesk (display), Inter (corpo), JetBrains Mono (terminal/código/metadados) — self-hosted via `@fontsource/*` |
 | Testes | Vitest, uma suíte por workspace |
 
@@ -112,15 +113,22 @@ Ajustes ou via `PUT /api/config`. Tudo que o MindView guarda localmente
 ## Testes
 
 ```bash
-npm run test          # domain + server (script da raiz)
-npm run test -w web   # web tem config própria de vitest; ainda não plugado no script da raiz
+npm run check       # typecheck + as três suítes + build:web — o portão completo
+npm run test        # as três suítes
+npm run typecheck   # tsc --noEmit nos três workspaces
+npm run test -w web # um workspace só
 ```
 
 | Workspace | Status | O que cobre |
 | --- | --- | --- |
 | `domain` | 36/36 passando | parser, index builder, selectors (search, board, staleness, links quebrados/fora, órfãos, grafo) |
 | `server` | 10/10 passando | testes HTTP fim-a-fim contra um vault-fixture descartável |
-| `web` | 5/5 passando | inclui o guarda-corpo de contraste WCAG de verdade (`src/lib/contrast.test.ts`) |
+| `web` | 34/34 passando | guarda-corpo de contraste WCAG (`src/lib/contrast.test.ts`), o modelo de render do grafo + filtros/grupos (`graphModel.test.ts`), a reconciliação da simulação de força em troca de modelo (`graphSim.test.ts`), e um render jsdom da tela do grafo inteira (`screens/GraphScreen.test.tsx`) |
+
+Não existe linter — nenhum ESLint/Prettier/Biome instalado nem configurado.
+`tsc --noEmit` (via `npm run typecheck`) é a única checagem estática. Havia
+um script `lint` na raiz apontando pra um script `lint` que o workspace
+`web` nunca teve; foi removido em vez de deixado quebrado.
 
 A suíte do `domain` teve quatro falhas de drift do vault até o começo de
 2026-09-05; todas resolvidas. Duas eram uma linha quebrada no frontmatter do
@@ -158,7 +166,7 @@ mindview/
         ├── context/     # TreeContext, SettingsContext, ReindexContext, AppStateEvents
         ├── api/         # client.ts, types.ts — wrapper fino de fetch + shapes de resposta
         ├── lib/         # hashRoute.ts, contrast.ts (WCAG), remarkTaskStates.ts, useThemeColors.ts,
-        │                # graphLayout.ts (force layout escrito à mão), tagPalette.ts, graphPrefs.ts,
+        │                # graphSim.ts (sim d3-force viva), graphModel.ts, tagPalette.ts, graphPrefs.ts,
         │                # tocCollapsed.ts / treeOpenState.ts (estado de UI por navegador)
         └── styles/      # tokens.css (identidade, ver docs/DESIGN.md), global.css
 ```
@@ -174,15 +182,17 @@ CLI) for construído em cima algum dia.
 Quatro abas na sidebar (nenhuma é "a tela principal") mais o Leitor, que não
 é aba — ver "Polimento pós-lançamento" abaixo pra entender por quê:
 
-1. **Grafo** — um grafo force-directed do vault: um ponto por nó, uma aresta
-   não-direcionada por link interno resolvido (`GET /api/graph` →
-   `domain/buildGraph`). Pan (arrastar) / zoom (scroll), clicar num nó abre
-   ele no Leitor, hover destaca a vizinhança. Controles (salvos por
-   navegador): cor pela tag mais específica ou pela primeira — reaproveitando
-   o mapa de cores de tag do Ajustes, com paleta ANSI automática pras tags
-   sem cor — tamanho por nº de backlinks, rótulos on/off, recentralizar. O
-   layout é uma pequena simulação de força escrita à mão (sem d3 — o vault
-   tem ~70 nós); ver
+1. **Grafo** — um grafo do vault estilo Obsidian, vivo: um ponto por nó
+   (`GET /api/graph` → `domain/buildGraph`), mais um nó opcional por tag,
+   posicionados por uma simulação [`d3-force`](https://github.com/d3/d3-force)
+   rodando, que você pode agarrar. Pan / zoom, **arrastar nós**, clicar abre
+   no Leitor, hover destaca a vizinhança; ↻ reinicia a simulação, ⊙
+   reenquadra. Rótulos surgem no zoom ("text fade threshold" do Obsidian) e
+   no hover. Painéis recolhíveis (salvos por navegador): **Filtros** (busca,
+   tags como nós, órfãos), **Grupos** (colore um subconjunto que casa uma
+   query), **Aparência** (cor por tag, tamanho por backlinks, setas, e
+   sliders de tamanho de nó / espessura de linha / limiar de rótulo). Toda
+   entrada/saída é animada. Ver
    [docs/ARQUITETURA.md](docs/ARQUITETURA.md#10-a-tela-do-grafo). Listado
    primeiro na sidebar por escolha explícita, mesmo tendo sido feito por
    último.
@@ -311,6 +321,40 @@ Mais tarde no mesmo dia, três correções e a última tela do MVP:
   artigo rolar.
 - **Grafo**: o placeholder foi embora — ver "Telas" acima e
   [docs/ARQUITETURA.md §10](docs/ARQUITETURA.md#10-a-tela-do-grafo).
+
+### Rework do grafo — estilo Obsidian (2026-09-05)
+
+O primeiro grafo era um layout estático de uma passada só. Reworkado pra
+bater com o graph view do Obsidian (menos forças ajustáveis), e depois
+refinado em várias rodadas de feedback ao vivo. O `domain` nunca foi tocado
+— os nós de tag e toda a filtragem vivem no novo
+`web/src/lib/graphModel.ts`, então o selector do vault e os testes dele
+continuam sendo sobre o vault. Prefs foram pra `mindview.graphPrefs.v2`.
+Arquitetura completa em [docs/ARQUITETURA.md §10](docs/ARQUITETURA.md#10-a-tela-do-grafo),
+narrativa completa em `mind/tarefas/empresa/mindview.md`.
+
+- **Simulação viva.** O layout escrito à mão deu lugar ao
+  [`d3-force`](https://github.com/d3/d3-force) (`web/src/lib/graphSim.ts`),
+  avançado pelo loop de `requestAnimationFrame` da tela. Dá pra arrastar nós.
+- **O ↻ é um re-crescimento encenado**, não um bump de alpha: o grafo esvazia
+  (nós de tag inclusive) e volta um nó por vez — órfãos primeiro, depois
+  busca em largura a partir do hub mais movimentado de cada componente, com
+  as arestas esperando as duas pontas. O intervalo entre nós é um slider
+  (`revealStepMs`; `0` desliga o escalonamento).
+- **Tags são nós de verdade** (toggle), todas de um tamanho só, configurável
+  — tamanho nesta tela significa "quão linkado é este nó", então tag popular
+  não deve ler como hub.
+- **Rótulos** aparecem só no nó sob o mouse, mais a revelação por zoom ("text
+  fade threshold" do Obsidian). Rotular também os *vizinhos* do nó sob o
+  mouse — o que a tela pré-rework fazia — é inviável com tags como nós.
+- **Painéis**: Aparência / Filtros / Grupos, recolhíveis, com um
+  "Restaurar padrão".
+- **Cor** é um checkbox só: ligado → a cor da primeira tag do nó; desligado →
+  a identidade do mind-landing, nós de arquivo no accent e nós de tag em
+  branco.
+- **Toda entrada e saída tem easing** — nós e arestas fazem fade + escala em
+  JS (independente de frame-rate), rótulos e painéis via transição CSS, e o
+  "recentralizar" faz tween em vez de pular.
 
 ## Nome
 

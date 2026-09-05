@@ -366,30 +366,86 @@ including repeats and self-links) — this is what the screen sizes nodes by,
 deliberately not outbound link count (an index node links out to everything
 and would dominate).
 
-**Layout — `web/src/lib/graphLayout.ts`.** A small hand-rolled force
-simulation (repulsion over all pairs + spring along edges + weak center
-gravity), run once per graph inside a `useMemo`, not animated frame by
-frame. At ~70 nodes the O(n²) pass is sub-millisecond, so there's no
-Barnes-Hut quadtree and no `d3-force` dependency (the bundle grew ~6 KB for
-the whole screen). A seeded PRNG (mulberry32) makes the layout stable across
-reloads.
+**Render model — `web/src/lib/graphModel.ts`.** The server graph is
+file-only; the *renderable* model is derived in the web layer (kept out of
+`domain` so the selector and its tests stay about the vault, not about how
+it's drawn). It optionally adds one node per distinct tag with an edge to
+every file that carries it, then applies the Filters (search query, orphans
+on/off, tags on/off) and resolves each node's final colour (a matching
+**group** query wins over the tag palette) and radius.
 
-**Screen — `web/src/screens/GraphScreen.tsx`.** SVG, with a `<g transform>`
-for pan (drag background) / zoom (wheel, toward the cursor). Click a node →
-open it in the Reader (suppressed if the pointer moved, so a pan doesn't
-navigate). Hover → highlight the node and its direct neighbours, dim the
-rest. Controls, persisted per browser in `localStorage`
-(`mindview.graphPrefs.v1`, see `web/src/lib/graphPrefs.ts`):
+**Simulation — `web/src/lib/graphSim.ts`.** A live [`d3-force`][d3f]
+simulation, ticked by hand from the screen's `requestAnimationFrame` loop
+(`sim.stop()` at construction, `sim.tick()` per frame) so React owns the
+frame and the loop can idle the instant `alpha` drops below `alphaMin` and
+nothing is animating. This **reverses the earlier decision** to hand-roll a
+one-shot static layout (`graphLayout.ts`, deleted): the graph is now
+something you grab, and "restart" re-heats it — that needs a real running
+simulation, and `d3-force` (~11 KB gzipped) is the engine Obsidian's graph
+effectively mirrors. `GraphSim` also owns node/edge **enter-exit state**: a
+linear `p ∈ [0,1]` presence value per item that the render eases into
+opacity + scale, so filter changes fade in/out instead of popping. Forces
+are fixed (no "Forces" panel): many-body repulsion scaled by node radius,
+link distance/strength by kind (file↔file vs file↔tag), gentle `forceX/Y`
+centring, `forceCollide`.
 
-- **Colour by tag** — `last` (most specific) or `first`. Last is the default
-  because the first tag is the folder name in ~93% of nodes, so "colour by
-  first tag" is just "colour by directory". Colour comes from the Ajustes
-  `settings.tagColors` map if the tag is in it, otherwise from a stable hash
-  into an ANSI-terminal palette with **no green** (`web/src/lib/tagPalette.ts`)
-  — green stays reserved for the app accent, same rule as the reading pills.
-- **Size by backlinks** — on/off; radius ≈ `4.5 + √backlinkCount · 2.4`.
-- **Labels** — off by default; hovered/neighbour node labels always show.
-- **Recenter** — recomputes the fit-to-content transform.
+**Screen — `web/src/screens/GraphScreen.tsx`.** SVG under a `<g transform>`
+for pan / zoom (wheel toward the cursor). Drag the background to pan; drag a
+**node** to move it (pinned via `fx/fy` while held, `alphaTarget` raised so
+neighbours follow, released on pointer-up). Click a node (no drag) → open it
+in the Reader. Hover → highlight the node + its direct neighbours, dim the
+rest (CSS-transitioned). The view **auto-frames** the graph as it settles
+until the first manual pan/zoom/drag; the ⊙ button tweens back to that fit,
+↻ restarts the simulation — not a plain alpha bump but a **staged
+re-growth**: positions are re-seeded, the graph empties (tag nodes included —
+Obsidian keeps those on screen, we don't), and it comes back one node at a
+time. The order is orphans first, then breadth-first from the most-connected
+node of each component, busiest neighbour first; an edge waits for both its
+endpoints. The per-node gap is the `revealStepMs` pref (0–150 ms, default
+20; `0` skips the stagger entirely and the graph returns in one piece) — it
+used to be derived from the node count and is now just a slider, since the
+right pace is a matter of taste, not arithmetic. The order is deterministic
+(ties break on degree, then id), so the same graph always assembles the same
+way. Labels follow Obsidian's "text fade threshold":
+hidden when zoomed out, fading in past a zoom the slider controls, and always
+shown for **the hovered node only** — extending that to its neighbours (what
+the pre-rework screen did) is unusable once tags are nodes, since hovering a
+hub tag would shout the name of every file carrying it. The neighbourhood is
+still highlighted, by not being dimmed rather than by being labelled.
+Controls
+(`web/src/screens/GraphControls.tsx`), persisted per browser in
+`localStorage` (`mindview.graphPrefs.v2`, see `web/src/lib/graphPrefs.ts`):
+
+- **Aparência** — *cor por tag* is a single on/off. **On**, a node takes its
+  **first** tag's colour, from the Ajustes `settings.tagColors` map, else a
+  stable hash into an ANSI-terminal palette with **no green**
+  (`web/src/lib/tagPalette.ts`). **Off**, the graph falls back to the
+  mind-landing identity — green + white: file nodes in `var(--accent)`, tag
+  nodes in `var(--fg)`. (There used to be a "most specific / first" pair of
+  chips; cut because the distinction never explained itself on screen, and
+  the first tag — the folder name in ~93% of nodes — is what makes the graph
+  read as coloured regions rather than confetti.) Also: size by backlinks
+  on/off; a flat tag-node size; arrows on/off (drawn on the stored link
+  direction — approximate, since the domain edge is deduped/undirected);
+  node-size, tag-size, link-thickness and label-threshold sliders.
+- **Filtros** — search (`tag:` / `path:` prefixes or plain substring),
+  *tags como nós* on/off, *órfãos* on/off. "Existing files only" and
+  "attachments" from Obsidian's panel don't apply here: the vault is
+  read-only, has no attachments, and its engine forbids unresolved links.
+- **Grupos** — colour a subset by a search query, Obsidian-style; a match
+  overrides the tag palette for that node.
+- **Restaurar padrão** in the panel footer puts every pref back to
+  `DEFAULT_GRAPH_PREFS` and re-enables auto-framing.
+
+A **tag node** is drawn as a filled dot in that tag's own colour plus a halo
+ring — the ring, not a hollow centre, is what distinguishes it from a file
+node. The same `tagColors` map (with the same `autoColorForTag` hash
+fallback) also drives the reader's tag pills, so one tag is one colour
+everywhere; the pills used to fall back to a flat `var(--blue)` for any tag
+the user hadn't coloured, which made them all look alike next to a graph
+that gave each its own hue.
+
+[d3f]: https://github.com/d3/d3-force
 
 ## 11. Out of scope in this version, and why
 

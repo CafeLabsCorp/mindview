@@ -45,9 +45,20 @@ MindView has an explicit dark/light/system choice in Ajustes.
 | `--subtle` | `#8a887f` | `#898781` | tertiary text, captions |
 | `--border` | `rgba(255,255,255,.1)` | `rgba(11,11,11,.1)` | borders |
 | `--green` | `#3fb950` | `#1a7f37` | **the accent** — CTAs, active state, prompt, the graph's hub nodes |
-| `--blue` | `#5b9eea` | `#1e5aa8` | secondary accent (given real use here — it was an unused `TODO: confirmar` token in `mind-landing`) |
 | `--danger` | `#f0655c` | (same) | broken links, the contrast guard-rail |
 | `--radius` | `14px` | | default corner radius |
+
+**There is no `--blue`, deliberately.** An earlier cycle promoted
+`mind-landing`'s unused `TODO: confirmar` blue into a "secondary accent" and
+spent it on three things — the `engine-doc` tree dot, the paused `[~]`
+checkbox, and the Console's paused badge — plus a fallback colour for
+uncoloured tag pills. Blue was never part of the Mind identity (which is
+green + white); the token has been removed and those four uses reassigned:
+the engine-doc dot to `--fg`, both paused states to `--muted` (paused reads
+as *parked*, dimmer than an open task's `--fg`, and can't be confused with
+done's `--accent`), and tag pills to the same hashed palette the graph uses.
+A blue **can** still appear on screen — but only as a colour the user picked
+for a tag in Ajustes, or as one entry in the hashed ANSI tag palette.
 
 `--on-code` / `--on-code-subtle` / `--on-code-accent` are **fixed, never
 inverted by theme**, used only on top of `--code-bg` surfaces. These exist
@@ -139,8 +150,17 @@ for covers is an explicit future-phase item (see
 No dedicated animation library — this app has none of `mind-landing`'s
 scroll-triggered reveal/typewriter sequences (there's no scrolling marketing
 narrative to animate). Interaction feedback (hover/active states, the
-quick-switcher modal, drag-and-drop into a notebook) uses plain CSS
-transitions consistent with the rest of the token system; nothing here reads
-`prefers-reduced-motion` yet, unlike `mind-landing`'s explicit handling of it
-— a gap worth closing if any future animation is added, not a decision made
-on purpose.
+quick-switcher modal, drag-and-drop into a notebook, the collapsible
+tree/nav) uses plain CSS transitions consistent with the rest of the token
+system.
+
+The **Grafo screen** is the one place with continuous motion: a live
+`d3-force` simulation, plus a rule that *every enter and exit is eased,
+never a pop* — nodes and edges fade + scale in/out when a filter changes
+(driven in JS from `graphSim.ts` so it's frame-rate-independent), labels
+cross-fade on the zoom threshold and on hover, panels animate open/closed
+(`grid-template-rows: 0fr → 1fr`), and "recenter" tweens the viewport
+instead of jumping. The graph's CSS transitions and the hover card's
+keyframe are wrapped in `@media (prefers-reduced-motion: reduce)`; the rest
+of the app still doesn't read that flag — a gap worth closing if more
+animation is added, not a decision made on purpose.

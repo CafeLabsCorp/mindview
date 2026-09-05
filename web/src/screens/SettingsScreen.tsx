@@ -133,8 +133,8 @@ export function SettingsScreen() {
         <section className="settings-group">
           <h3>Cores das tags</h3>
           <span className="hint" style={{ display: 'block', marginBottom: 10 }}>
-            reaproveitadas na leitura, na estante e (no futuro) no grafo. Paleta ANSI de terminal, sem verde — verde é reservado
-            pro accent.
+            reaproveitadas na leitura, na estante e no grafo. Uma tag sem cor aqui recebe uma cor estável da paleta ANSI de
+            terminal, sem verde — verde é reservado pro accent.
           </span>
           <div className="tag-color-grid">
             {Object.entries(settings.tagColors).map(([tag, color]) => {

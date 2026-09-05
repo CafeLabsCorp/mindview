@@ -51,6 +51,11 @@ select,
 textarea {
   font-family: inherit;
   color: inherit;
+  /* Native controls (checkbox, radio, range) tint themselves with the UA's
+     own accent — a blue that belongs to no palette here. Set once, globally:
+     doing it per-component is how the Ajustes sliders stayed browser-blue
+     while the graph panel's were green. */
+  accent-color: var(--accent);
 }
 
 button {
@@ -336,7 +341,7 @@ input:focus-visible,
   flex-shrink: 0;
 }
 .tree-row .kind-dot.engine-doc {
-  background: var(--blue);
+  background: var(--fg);
 }
 .tree-row .kind-dot.mind-node {
   background: var(--accent);
@@ -640,8 +645,8 @@ input[type='color']::-moz-color-swatch {
   border-color: var(--accent);
 }
 .prose li[data-task-state='paused']::before {
-  border-color: var(--blue);
-  background: repeating-linear-gradient(45deg, var(--blue) 0 2px, transparent 2px 4px);
+  border-color: var(--muted);
+  background: repeating-linear-gradient(45deg, var(--muted) 0 2px, transparent 2px 4px);
   opacity: 0.85;
 }
 .prose li[data-task-state='done'] {
@@ -828,7 +833,7 @@ input[type='color']::-moz-color-swatch {
   color: var(--accent);
 }
 .board-badge.paused {
-  color: var(--blue);
+  color: var(--muted);
 }
 
 .issue-list {
@@ -1263,10 +1268,6 @@ input[type='color']::-moz-color-swatch {
   gap: 7px;
   cursor: pointer;
 }
-.gc-check input,
-.gc-group input[type='checkbox'] {
-  accent-color: var(--accent);
-}
 .gc-search,
 .gc-group input[type='text'] {
   width: 100%;
@@ -1336,7 +1337,6 @@ input[type='color']::-moz-color-swatch {
 }
 .gc-slider input[type='range'] {
   width: 100%;
-  accent-color: var(--accent);
 }
 
 .gc-group {

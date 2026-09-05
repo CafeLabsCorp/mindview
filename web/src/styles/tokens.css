@@ -16,7 +16,6 @@
   --subtle: #8a887f;
   --border: rgba(255, 255, 255, 0.1);
   --green: #3fb950;
-  --blue: #5b9eea;
   --radius: 14px;
 
   /* fixed — never invert with theme, only ever used on --code-bg surfaces */
@@ -54,7 +53,6 @@
     --subtle: #898781;
     --border: rgba(11, 11, 11, 0.1);
     --green: #1a7f37;
-    --blue: #1e5aa8;
     color-scheme: light;
   }
 }
@@ -69,7 +67,6 @@
   --subtle: #898781;
   --border: rgba(11, 11, 11, 0.1);
   --green: #1a7f37;
-  --blue: #1e5aa8;
   color-scheme: light;
 }
 
@@ -85,6 +82,5 @@
   --subtle: #8a887f;
   --border: rgba(255, 255, 255, 0.1);
   --green: #3fb950;
-  --blue: #5b9eea;
   color-scheme: dark;
 }

@@ -1,0 +1,90 @@
+/* Design tokens — ported from mind-landing/src/app/[locale]/globals.css,
+   the identity's source of truth (see mind/tarefas/empresa/mindview.md).
+   Unlike the site (system-only), MV has a manual dark/light/system toggle
+   in Ajustes, so both palettes are always both declared here and the
+   active one is picked by `[data-theme]` on <html> — see
+   context/SettingsContext.tsx's applyThemeToDom(). */
+
+:root {
+  /* dark palette — base/default */
+  --bg: #0d0d0d;
+  --surface: #161615;
+  --surface-2: #1c1c1a;
+  --code-bg: #0a0a0a;
+  --fg: #f2f1ec;
+  --muted: #c3c2b7;
+  --subtle: #8a887f;
+  --border: rgba(255, 255, 255, 0.1);
+  --green: #3fb950;
+  --blue: #5b9eea;
+  --radius: 14px;
+
+  /* fixed — never invert with theme, only ever used on --code-bg surfaces */
+  --on-code: #c3c2b7;
+  --on-code-subtle: #8a887f;
+  --on-code-accent: #3fb950;
+
+  /* danger/warning, used sparingly (broken links, contrast guard-rail) */
+  --danger: #f0655c;
+
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* set at runtime by SettingsContext; fallbacks keep the app usable
+     before the first /api/settings response lands */
+  --accent: var(--green);
+  --link-color: var(--accent);
+  --read-font: var(--font-body);
+  --read-size: 15.5px;
+  --read-col: 680px;
+  --read-line-height: 1.75;
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --bg: #f9f9f7;
+    --surface: #fcfcfb;
+    --surface-2: #f1f0ec;
+    --code-bg: #111110;
+    --fg: #0b0b0b;
+    --muted: #52514e;
+    --subtle: #898781;
+    --border: rgba(11, 11, 11, 0.1);
+    --green: #1a7f37;
+    --blue: #1e5aa8;
+    color-scheme: light;
+  }
+}
+
+:root[data-theme='light'] {
+  --bg: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-2: #f1f0ec;
+  --code-bg: #111110;
+  --fg: #0b0b0b;
+  --muted: #52514e;
+  --subtle: #898781;
+  --border: rgba(11, 11, 11, 0.1);
+  --green: #1a7f37;
+  --blue: #1e5aa8;
+  color-scheme: light;
+}
+
+/* explicit dark wins even when the OS prefers light — must come after the
+   light media block above to win the cascade */
+:root[data-theme='dark'] {
+  --bg: #0d0d0d;
+  --surface: #161615;
+  --surface-2: #1c1c1a;
+  --code-bg: #0a0a0a;
+  --fg: #f2f1ec;
+  --muted: #c3c2b7;
+  --subtle: #8a887f;
+  --border: rgba(255, 255, 255, 0.1);
+  --green: #3fb950;
+  --blue: #5b9eea;
+  color-scheme: dark;
+}

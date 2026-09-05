@@ -44,7 +44,7 @@ MindView has an explicit dark/light/system choice in Ajustes.
 | `--muted` | `#c3c2b7` | `#52514e` | secondary text |
 | `--subtle` | `#8a887f` | `#898781` | tertiary text, captions |
 | `--border` | `rgba(255,255,255,.1)` | `rgba(11,11,11,.1)` | borders |
-| `--green` | `#3fb950` | `#1a7f37` | **the accent** — CTAs, active state, prompt, the graph's future hub node |
+| `--green` | `#3fb950` | `#1a7f37` | **the accent** — CTAs, active state, prompt, the graph's hub nodes |
 | `--blue` | `#5b9eea` | `#1e5aa8` | secondary accent (given real use here — it was an unused `TODO: confirmar` token in `mind-landing`) |
 | `--danger` | `#f0655c` | (same) | broken links, the contrast guard-rail |
 | `--radius` | `14px` | | default corner radius |
@@ -75,9 +75,11 @@ lgpd:     #f0655c                                   financeiro: #8a7226
 marketing: #e685b5                                  distribuicao: #e0913a
 ```
 
-Green is reserved for the accent/system color (buttons, active states, the
-eventual graph hub) precisely so a tag pill is never visually confusable with
-"this is clickable/active." (`cafelabs`'s default happens to reuse the green
+Green is reserved for the accent/system color (buttons, active states,
+the graph's index hub nodes) precisely so a tag pill is never visually confusable with
+"this is clickable/active." The Grafo screen follows the same rule — node
+colours come from this palette (or a hashed fallback from the same ANSI
+set), never the accent green. (`cafelabs`'s default happens to reuse the green
 hex as a starting value in the shipped defaults — every tag color is
 user-editable from Ajustes, so this isn't a hard rule enforced in code, just
 the curated default set's intent.)

@@ -302,17 +302,15 @@ de frontmatter precisa rodar o `fence.test.ts` e entender por que cada
 assertion existe antes de mudar comportamento em torno de fences ou
 detecção de frontmatter.**
 
-## 9. Falhas de teste conhecidas / débito técnico
+## 9. Falhas de teste conhecidas (débito técnico)
 
-Rodar `npm run test -w domain` originalmente mostrava **4 testes falhando,
-todos drift de conteúdo no vault, não bugs de parser** — confirmado
-reparseando à mão os arquivos atuais do vault e inspecionando a divergência
-manualmente, não assumido. Duas dessas quatro (9a) já foram corrigidas
-direto no vault (fora do controle deste projeto, mas vale registrar já que
-aconteceu) — **restam 2 falhas hoje (9b, 9c)**. **Não conserte essas
-editando o vault nem hardcodando em torno do conteúdo atual** — os fixes
-abaixo são pra uma rodada futura, e são sobre tornar os testes robustos a
-edição normal do vault, não sobre o parser estar errado hoje.
+Rodar `npm run test -w domain` já mostrou **4 testes falhando, todos drift
+de conteúdo no vault, não bugs de parser** — confirmado reparseando à mão os
+arquivos atuais do vault e inspecionando a divergência manualmente, não
+assumido. **As quatro estão resolvidas em 2026-09-05** (`domain` está
+36/36). Esta seção registra o que eram e como cada uma foi corrigida,
+porque o formato do bug (um teste acoplado demais ao conteúdo do vault ao
+vivo) vale não repetir.
 
 ### 9a. `claude-user/skills/mind/SKILL.md` classificado errado como `engine-doc` — CORRIGIDO em 2026-09-05
 
@@ -333,70 +331,87 @@ aspas tanto em `mind/claude-user/skills/mind/SKILL.md` quanto no espelho no
 MindView (ver `mind/tarefas/empresa/mindview.md`). O `npm run test -w
 domain` reflete isso: 27/31 → 29/31.
 
-### 9b. Número de linha hardcoded na assertion sobre `docs/ARQUITETURA.md`
+### 9b. Número de linha hardcoded na assertion sobre `docs/ARQUITETURA.md` — CORRIGIDO em 2026-09-05
 
-`fence.test.ts` afirma `bytes.split('\n')[77] === '---'` (índice 77
-base-zero, ou seja linha 78) pra checar que um `---` no meio do documento
-nunca é confundido com frontmatter. O `docs/ARQUITETURA.md` do vault
-cresceu uma linha acima desse ponto (uma regra de "crescimento orgânico"
-ficou mais longa) desde que o teste foi escrito, então o `---` que o teste
-espera agora está numa linha diferente — a assertion em si é frágil, não o
-parser: ela hardcoda uma posição absoluta num documento que legitimamente
-muda com o tempo.
+`fence.test.ts` afirmava `bytes.split('\n')[77] === '---'` (linha 78) pra
+checar que um `---` no meio do documento nunca é confundido com frontmatter.
+O `docs/ARQUITETURA.md` do vault cresceu linhas acima desse ponto (uma regra
+de "crescimento orgânico" ficou mais longa), então o `---` se moveu. O teste
+agora acha o primeiro `---` depois da linha 1 varrendo (`lines.findIndex((l,
+i) => i > 0 && l.trim() === '---')`) e afirma que ele existe e que
+`frontmatter` continua `null` — sem posição absoluta.
 
-### 9c. Contagem de tarefas não-zero na mesma fixture de exemplo em fence
+### 9c. O parser contava todo bullet como tarefa — CORRIGIDO em 2026-09-05
 
-O mesmo crescimento de conteúdo em `docs/ARQUITETURA.md` deu ao documento
-mais listas de bullets de verdade em outros pontos. A extração de tarefas
-de `domain/src/parse.ts` (`collectTasks`/`parseTask`) trata **todo item de
-lista** como uma linha de tarefa (estado `open` por padrão, `done`/`paused`
-só pra checkboxes reais `- [x]`/`- [~]`) — isso é intencional (é o que faz
-a detecção de `[~]` funcionar, já que o remark-gfm não reconhece `[~]` como
-checkbox), mas significa que qualquer lista de bullets num arquivo
-`engine-doc` também produz "tarefas" no nó parseado, mesmo que o
-`buildBoard` (`domain/src/selectors.ts`) só exponha tarefas de arquivos do
-tipo `mind-node`, então isso nunca chega na UI de verdade. O teste que
-afirma "esta fixture tem zero tarefas" está na verdade afirmando "este
-exemplo específico em fence não vaza pra extração de tarefas", mas também
-acaba contando os bullets reais e não relacionados do arquivo, e agora vê
-30 em vez de 0.
+O `collectTasks` de `domain/src/parse.ts` empurrava **todo** `listItem` como
+tarefa, então um documento de prosa como o `docs/ARQUITETURA.md` produzia
+dezenas de "tarefas abertas" fantasma — inofensivo na UI (o `buildBoard` só
+lê arquivos `mind-node`) mas suficiente pra inflar os totais do board do
+Console e pra fazer uma assertion de "esta fixture tem zero tarefas" falhar.
+O `collectTasks` agora filtra por `isTaskItem`: um item de lista só conta se
+for checkbox GFM (`li.checked` é booleano) ou seu texto começa com `[~]` (a
+convenção de pausado do vault, que o remark-gfm deixa como item comum). O
+`parseTask` ficou mais simples — o ramo "bullet comum → tarefa aberta"
+sumiu. O `parse.test.ts` tem um caso de regressão ("does not count a plain
+bullet as a task").
 
-### Fix sugerido pra uma futura rodada do `backend` (não implementado aqui)
+### Ainda aberto: expor `frontmatter-parse-error` em vez de engoli-lo
 
-1. **Expor `frontmatter-parse-error` em vez de virar silenciosamente
-   `null`/`engine-doc`.** `ParsedNode.problems` já existe exatamente pra
-   isso (`domain/src/types.ts`) e já é populado em `parse.ts` — no momento
-   desta escrita, nada em `server` ou `web` lê isso (confirmado com grep
-   nos dois workspaces por `problems`). Um `console.warn` do lado do
-   server quando um nó tem um array `problems` não-vazio, e/ou um pequeno
-   indicador "N problemas de parse" exposto em algum lugar da tela
-   Console, tornaria essa classe de bug visível na hora em vez de
-   silenciosamente reclassificar o `kind` de um nó.
-2. **Parar de hardcodar a checagem de `---` no meio do documento no
-   `fence.test.ts` num índice de linha absoluto.** Buscar pelo conteúdo ou
-   posição real do nó mdast `<hr>`/`thematicBreak` relativo a uma âncora
-   conhecida (ex.: "o segundo `thematicBreak` do documento, onde quer que
-   caia") em vez de `bytes.split('\n')[77]`, pra que edição normal do vault
-   não quebre esse teste.
+O `parse.ts` popula `ParsedNode.problems` com um `frontmatter-parse-error`
+quando o frontmatter YAML de um nó falha o parse, e então cai pra
+`frontmatter: null` — o que silenciosamente reclassifica o nó como
+`engine-doc` (foi a causa raiz do 9a). Nada em `server` ou `web` lê
+`problems` hoje. Um `console.warn` no server quando um nó tem `problems`
+não-vazio, e/ou um indicador "N problemas de parse" no Console, tornaria
+isso visível em vez de uma troca de `kind` silenciosa. Ainda não agendado.
 
-Nenhum dos dois foi implementado como parte desta rodada de documentação —
-são escopo de um futuro ciclo `backend`, conforme o brief da tarefa.
+## 10. A tela do grafo
 
-## 10. Placeholder do grafo: por que fica por último
+Feita por último de propósito, e entregue como placeholder "Graph — em
+breve" até 2026-09-05. Não foi adiamento de agenda: o stress-test do
+`orchestrator` achou que o vault tem relativamente pouca estrutura de grafo
+— ~70 arquivos `.md`, zero wikilinks (o próprio `ARQUITETURA.md` do vault
+proíbe), e links relativos que são quase todos pares índice↔nó (formato de
+árvore). O grafo real hoje tem ~69 nós / ~236 arestas deduplicadas, com os
+índices de pasta como hubs naturais.
 
-A tela do Grafo é entregue como um placeholder literal "Graph — em breve",
-confirmado pelo Felipe especificamente pra tela não parecer vazia/mal
-acabada. Isso não é um adiamento de agenda — o stress-test do
-`orchestrator` achou que o vault de fato tem pouco pra desenhar: 67
-arquivos `.md`, zero wikilinks (o próprio `ARQUITETURA.md` do vault
-proíbe), e 424 links relativos que são quase todos pares índice↔nó (formato
-de árvore, não de grafo). A camada de dependência real que vale a pena
-visualizar tem ~6 arquivos e ~8 arestas. Quando for construído, a
-customização planejada é: colorir pela tag *última* (a mais específica) em
-vez da primeira (que é o nome da pasta em ~93% dos nós, então "cor pela
-primeira tag" seria só "cor por diretório", nenhuma informação nova), e
-tamanho do nó por contagem de backlinks em vez de links totais (senão
-arquivos de índice dominariam como bolas gigantes).
+**Dados — `domain/buildGraph(index)` → `GET /api/graph`.** Um `GraphNode`
+por arquivo indexado (`path`, `title`, `tags`, `kind`, `isIndex`,
+`backlinkCount`). Arestas são links internos resolvidos entre dois nós
+indexados; links externos, links fora do vault, âncoras puras e self-links
+são descartados, e A→B / B→A / links duplicados colapsam pra **uma aresta
+não-direcionada**. `backlinkCount` é o número de *outros nós distintos* que
+apontam pra ele (não `index.backlinks.get(path).length`, que conta cada
+ocorrência de link, incluindo repetidos e self-links) — é por isso que a
+tela dimensiona os nós, deliberadamente não por contagem de links de saída
+(um nó de índice aponta pra tudo e dominaria).
+
+**Layout — `web/src/lib/graphLayout.ts`.** Uma pequena simulação de força
+escrita à mão (repulsão sobre todos os pares + mola ao longo das arestas +
+gravidade fraca pro centro), rodada 1× por grafo dentro de um `useMemo`, não
+animada quadro a quadro. Com ~70 nós o passo O(n²) é sub-milissegundo, então
+não tem quadtree Barnes-Hut nem dependência de `d3-force` (o bundle cresceu
+~6 KB pra tela inteira). Um PRNG com seed (mulberry32) deixa o layout
+estável entre reloads.
+
+**Tela — `web/src/screens/GraphScreen.tsx`.** SVG, com um `<g transform>`
+pro pan (arrastar o fundo) / zoom (scroll, em direção ao cursor). Clicar num
+nó → abre ele no Leitor (suprimido se o ponteiro se moveu, pra um pan não
+navegar). Hover → destaca o nó e os vizinhos diretos, esmaece o resto.
+Controles, salvos por navegador em `localStorage` (`mindview.graphPrefs.v1`,
+ver `web/src/lib/graphPrefs.ts`):
+
+- **Cor por tag** — `last` (mais específica) ou `first`. `last` é o default
+  porque a primeira tag é o nome da pasta em ~93% dos nós, então "cor pela
+  primeira tag" é só "cor por diretório". A cor vem do mapa
+  `settings.tagColors` do Ajustes se a tag estiver nele, senão de um hash
+  estável numa paleta ANSI de terminal **sem verde** (`web/src/lib/tagPalette.ts`)
+  — o verde fica reservado pro accent do app, mesma regra das pills de
+  leitura.
+- **Tamanho por backlinks** — on/off; raio ≈ `4.5 + √backlinkCount · 2.4`.
+- **Rótulos** — off por padrão; rótulos de nó em hover/vizinhança sempre
+  aparecem.
+- **Recentralizar** — recomputa a transformação de "caber no conteúdo".
 
 ## 11. Fora de escopo nesta versão, e por quê
 
@@ -430,9 +445,6 @@ foi uma decisão deliberada, não um descuido:
   conjunto curado de glifos monocromáticos (sem emoji, sem upload de
   imagem) — uma superfície menor e controlada do que "qualquer imagem",
   adiada em vez de cortada.
-- **Um grafo interativo/force-directed de verdade.** Ver §10 — ainda não
-  há estrutura de grafo suficiente no vault hoje pra justificar o custo, e
-  um placeholder evita que a tela pareça quebrada/vazia nesse meio tempo.
 - **CSS arbitrário/snippets/temas de terceiros.** Ajustes expõe um
   conjunto fixo e curado de controles de aparência (destaque, cor de link,
   tema, tipografia de leitura, cores de tag, alguns toggles) —

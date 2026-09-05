@@ -283,17 +283,15 @@ tag set.
 logic must run `fence.test.ts` and understand why each assertion exists
 before changing behavior around fences or frontmatter detection.**
 
-## 9. Known test failures / technical debt
+## 9. Known test failures (technical debt)
 
-Running `npm run test -w domain` originally showed **4 failing tests, all
-vault content drift, not parser bugs** — confirmed by manually reparsing the
-vault's current files and inspecting the mismatch by hand, not assumed. Two
-of the four (9a) have since been fixed directly in the vault (out of this
-project's control, but worth recording once it happened) — **2 failures
-remain today (9b, 9c)**. **Do not fix those by editing the vault or by
-hardcoding around the current content** — the fixes below are for a future
-round, and are about making the tests robust to normal vault editing, not
-about the parser being wrong today.
+Running `npm run test -w domain` once showed **4 failing tests, all vault
+content drift, not parser bugs** — confirmed by manually reparsing the
+vault's current files and inspecting the mismatch by hand, not assumed.
+**All four are resolved as of 2026-09-05** (`domain` is 36/36). This section
+records what they were and how each was fixed, because the shape of bug
+(a test coupled too tightly to the live vault's content) is worth not
+repeating.
 
 ### 9a. `claude-user/skills/mind/SKILL.md` misclassified as `engine-doc` — FIXED 2026-09-05
 
@@ -313,66 +311,85 @@ found and fixed while working the MindView backlog (see
 `mind/tarefas/empresa/mindview.md`). `npm run test -w domain` reflects this:
 27/31 → 29/31.
 
-### 9b. Hardcoded line number in `docs/ARQUITETURA.md`'s test assertion
+### 9b. Hardcoded line number in `docs/ARQUITETURA.md`'s test assertion — FIXED 2026-09-05
 
-`fence.test.ts` asserts `bytes.split('\n')[77] === '---'` (0-based index 77,
-i.e. line 78) to sanity-check that a mid-document horizontal rule is never
-mistaken for frontmatter. The vault's `docs/ARQUITETURA.md` grew a line above
-that point (an "organic growth" rule got longer) since the test was written,
-so the `---` the test expects is now on a different line — the assertion
-itself is fragile, not the parser: it hardcodes an absolute position in a
-document that legitimately changes over time.
+`fence.test.ts` asserted `bytes.split('\n')[77] === '---'` (line 78) to
+sanity-check that a mid-document horizontal rule is never mistaken for
+frontmatter. The vault's `docs/ARQUITETURA.md` grew lines above that point
+(an "organic growth" rule got longer), so the `---` moved. The test now
+finds the first `---` line past line 1 by scanning (`lines.findIndex((l, i)
+=> i > 0 && l.trim() === '---')`) and asserts that one exists and that
+`frontmatter` is still `null` — no absolute position.
 
-### 9c. Non-zero task count in the same fenced-example fixture
+### 9c. Parser counted every bullet as a task — FIXED 2026-09-05
 
-The same content growth in `docs/ARQUITETURA.md` gave the document more real
-bullet lists elsewhere. `domain/src/parse.ts`'s task extraction
-(`collectTasks`/`parseTask`) treats **every list item** as a task line (state
-`open` by default, `done`/`paused` only for actual `- [x]`/`- [~]`
-checkboxes) — this is intentional (it's what makes `[~]` detection work at
-all, since remark-gfm doesn't recognize `[~]` as a checkbox), but it means
-any bullet list in an `engine-doc` file also produces "tasks" in the parsed
-node, even though `buildBoard` (`domain/src/selectors.ts`) only ever surfaces
-tasks from `mind-node`-kind files, so this never reaches the actual UI. The
-test asserting "this fixture has zero tasks" is really asserting "this
-specific fenced example doesn't leak into task extraction," but it also
-happens to count the file's unrelated real bullets, and now sees 30 instead
-of 0.
+`domain/src/parse.ts`'s `collectTasks` pushed **every** `listItem` as a
+task, so a prose document like `docs/ARQUITETURA.md` produced dozens of
+phantom "open tasks" — harmless in the UI (`buildBoard` only reads
+`mind-node` files) but enough to inflate the Console board's totals and to
+make a "this fixture has zero tasks" assertion fail. `collectTasks` now
+gates on `isTaskItem`: a list item counts only if it's a GFM checkbox
+(`li.checked` is a boolean) or its text starts with `[~]` (the vault's
+paused convention, which remark-gfm leaves as a plain item). `parseTask` is
+correspondingly simpler — the "plain bullet → open task" branch is gone.
+`parse.test.ts` has a regression case ("does not count a plain bullet as a
+task").
 
-### Suggested fix for a future `backend` round (not implemented here)
+### Still open: surface `frontmatter-parse-error` instead of swallowing it
 
-1. **Surface `frontmatter-parse-error` instead of it silently becoming
-   `null`/`engine-doc`.** `ParsedNode.problems` already exists for exactly
-   this (`domain/src/types.ts`) and is already populated in `parse.ts` — as
-   of this writing, nothing in `server` or `web` reads it (confirmed by
-   grepping both workspaces for `problems`). A `console.warn` on the server
-   side when a node has a non-empty `problems` array, and/or a small "N
-   parse issues" indicator surfaced somewhere in the Console screen, would
-   make this class of bug visible immediately instead of silently
-   reclassifying a node's `kind`.
-2. **Stop hardcoding `fence.test.ts`'s mid-document `---` check to an
-   absolute line index.** Search for the actual `<hr>`/`thematicBreak` mdast
-   node's content or position relative to a known anchor (e.g., "the second
-   `thematicBreak` in the document, wherever it lands") instead of
-   `bytes.split('\n')[77]`, so normal vault editing doesn't break this test.
+`parse.ts` populates `ParsedNode.problems` with a `frontmatter-parse-error`
+when a node's YAML frontmatter fails to parse, then falls back to
+`frontmatter: null` — which silently reclassifies the node as `engine-doc`
+(this was root cause 9a). Nothing in `server` or `web` reads `problems`
+today. A `console.warn` server-side when a node has a non-empty `problems`
+array, and/or a small "N parse issues" indicator in the Console, would make
+this visible instead of a silent `kind` change. Not yet scheduled.
 
-Neither of these was implemented as part of this documentation round — they
-are scoped to a future `backend` cycle, per the task brief.
+## 10. The graph screen
 
-## 10. Graph placeholder: why it's last
+Built last on purpose, and shipped as a "Graph — coming soon" placeholder
+until 2026-09-05. That wasn't a scheduling afterthought: the `orchestrator`'s
+stress-test found the vault has relatively little graph structure — ~70
+`.md` files, zero wikilinks (the vault's own `ARQUITETURA.md` prohibits
+them), and relative links that are mostly index↔node pairs (a tree shape).
+The real graph today is ~69 nodes / ~236 deduped edges, with the folder
+indexes as the natural hubs.
 
-The Graph screen ships as a literal "Graph — coming soon" placeholder,
-confirmed by Felipe specifically so the screen doesn't read as empty/unfinished.
-This isn't a scheduling afterthought — the `orchestrator`'s stress-test found
-the vault genuinely has little to draw: 67 `.md` files, zero wikilinks (the
-vault's own `ARQUITETURA.md` prohibits them), and 424 relative links that are
-almost all index↔node pairs (a tree shape, not a graph shape). The real
-dependency layer worth visualizing is ~6 files and ~8 edges. When it is
-built, the planned customization is: color by the *last* tag (the most
-specific one) rather than the first (which is the folder name in ~93% of
-nodes, so "color by first tag" would just be "color by directory," no new
-information), and node size by backlink count rather than total link count
-(otherwise index files would dominate as giant balls).
+**Data — `domain/buildGraph(index)` → `GET /api/graph`.** One `GraphNode`
+per indexed file (`path`, `title`, `tags`, `kind`, `isIndex`,
+`backlinkCount`). Edges are resolved internal links between two indexed
+nodes; external links, outside-vault links, pure anchors and self-links are
+dropped, and A→B / B→A / duplicate links collapse to **one undirected
+edge**. `backlinkCount` is the number of *distinct other nodes* that link in
+(not `index.backlinks.get(path).length`, which counts every link occurrence
+including repeats and self-links) — this is what the screen sizes nodes by,
+deliberately not outbound link count (an index node links out to everything
+and would dominate).
+
+**Layout — `web/src/lib/graphLayout.ts`.** A small hand-rolled force
+simulation (repulsion over all pairs + spring along edges + weak center
+gravity), run once per graph inside a `useMemo`, not animated frame by
+frame. At ~70 nodes the O(n²) pass is sub-millisecond, so there's no
+Barnes-Hut quadtree and no `d3-force` dependency (the bundle grew ~6 KB for
+the whole screen). A seeded PRNG (mulberry32) makes the layout stable across
+reloads.
+
+**Screen — `web/src/screens/GraphScreen.tsx`.** SVG, with a `<g transform>`
+for pan (drag background) / zoom (wheel, toward the cursor). Click a node →
+open it in the Reader (suppressed if the pointer moved, so a pan doesn't
+navigate). Hover → highlight the node and its direct neighbours, dim the
+rest. Controls, persisted per browser in `localStorage`
+(`mindview.graphPrefs.v1`, see `web/src/lib/graphPrefs.ts`):
+
+- **Colour by tag** — `last` (most specific) or `first`. Last is the default
+  because the first tag is the folder name in ~93% of nodes, so "colour by
+  first tag" is just "colour by directory". Colour comes from the Ajustes
+  `settings.tagColors` map if the tag is in it, otherwise from a stable hash
+  into an ANSI-terminal palette with **no green** (`web/src/lib/tagPalette.ts`)
+  — green stays reserved for the app accent, same rule as the reading pills.
+- **Size by backlinks** — on/off; radius ≈ `4.5 + √backlinkCount · 2.4`.
+- **Labels** — off by default; hovered/neighbour node labels always show.
+- **Recenter** — recomputes the fit-to-content transform.
 
 ## 11. Out of scope in this version, and why
 
@@ -402,9 +419,6 @@ deliberate call, not an oversight:
 - **Cover image upload for notebooks.** MVP notebooks use a curated set of
   monochrome glyphs (no emoji, no image upload) — a smaller, controlled
   surface than "any image," deferred rather than cut.
-- **A real force-directed/interactive graph.** See §10 — not enough graph
-  structure in the vault today to justify the cost, and a placeholder
-  avoids the screen looking broken/empty in the meantime.
 - **Arbitrary CSS/snippets/third-party themes.** Ajustes exposes a fixed,
   curated set of appearance knobs (accent, link color, theme, reading
   typography, tag colors, a few toggles) — explicitly not an

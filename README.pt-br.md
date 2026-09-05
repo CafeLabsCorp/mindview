@@ -118,32 +118,18 @@ npm run test -w web   # web tem config própria de vitest; ainda não plugado no
 
 | Workspace | Status | O que cobre |
 | --- | --- | --- |
-| `domain` | **29/31 passando — 2 falhas conhecidas, ver abaixo** | parser, index builder, selectors (search, board, staleness, links quebrados/fora, órfãos) |
-| `server` | 8/8 passando | testes HTTP fim-a-fim contra um vault-fixture descartável |
+| `domain` | 36/36 passando | parser, index builder, selectors (search, board, staleness, links quebrados/fora, órfãos, grafo) |
+| `server` | 10/10 passando | testes HTTP fim-a-fim contra um vault-fixture descartável |
 | `web` | 5/5 passando | inclui o guarda-corpo de contraste WCAG de verdade (`src/lib/contrast.test.ts`) |
 
-### Falhas conhecidas em `npm run test -w domain` (não "corrija" editando o vault)
-
-Dois testes do `domain` falham hoje (eram quatro — uma causa raiz, cobrindo
-duas asserções, foi corrigida direto no vault em 2026-09-05), e **as duas
-que sobram são drift de conteúdo no vault Mind ao vivo, não regressão de
-parser** — confirmado rodando o parser à mão contra o conteúdo atual dos
-arquivos. Detalhe completo, causas raiz e o fix sugerido (ainda não
-agendado) em
-[docs/ARQUITETURA.md](docs/ARQUITETURA.md#falhas-de-teste-conhecidas--débito-técnico).
-Resumo:
-
-1. `docs/ARQUITETURA.md` (no vault) cresceu acima do exemplo de YAML em
-   fence que o teste aponta, então o número de linha hardcoded
-   (`bytes.split('\n')[77]`) não cai mais no `---` que o teste espera.
-2. O mesmo crescimento de conteúdo deu a esse arquivo listas de bullets de
-   verdade, que a detecção de tarefas do parser (qualquer item de lista, não
-   só checkboxes `- [ ]`) capta — então um teste que afirma "zero tarefas
-   nesta fixture de exemplo em fence" agora vê os bullets reais e não
-   relacionados do arquivo.
-
-São problemas de conteúdo do vault, não bugs do `domain` — não edite o vault
-nem o teste pra fazê-los passar sem antes ler a seção linkada.
+A suíte do `domain` teve quatro falhas de drift do vault até o começo de
+2026-09-05; todas resolvidas. Duas eram uma linha quebrada no frontmatter do
+`SKILL.md` + um `description:` mal-citado, corrigidas no vault. As outras
+duas eram o `fence.test.ts` fixando um número de linha absoluto e uma
+contagem total de tarefas contra o `docs/ARQUITETURA.md` ao vivo — o teste
+agora acha o `---` do meio do doc varrendo e checa por conteúdo, e o parser
+só conta um item de lista como tarefa quando é `[ ]`/`[x]`/`[~]` (ver
+[docs/ARQUITETURA.md §9](docs/ARQUITETURA.md#9-falhas-de-teste-conhecidas-débito-técnico)).
 
 ## Estrutura de pastas
 
@@ -167,11 +153,13 @@ mindview/
 │   └── test/           # server.test.ts — testes HTTP contra um vault-fixture descartável
 └── web/               # @mindview/web — UI Vite + React 19
     └── src/
-        ├── screens/     # Reader, Shelf, Console, GraphPlaceholder, SettingsScreen
+        ├── screens/     # Reader, Shelf, Console, GraphScreen, SettingsScreen
         ├── components/  # Sidebar, Tree, QuickSwitcher, TerminalChrome, MarkdownBody, …
-        ├── context/     # TreeContext, SettingsContext, ReindexContext
+        ├── context/     # TreeContext, SettingsContext, ReindexContext, AppStateEvents
         ├── api/         # client.ts, types.ts — wrapper fino de fetch + shapes de resposta
-        ├── lib/         # hashRoute.ts, contrast.ts (WCAG), remarkTaskStates.ts, useThemeColors.ts
+        ├── lib/         # hashRoute.ts, contrast.ts (WCAG), remarkTaskStates.ts, useThemeColors.ts,
+        │                # graphLayout.ts (force layout escrito à mão), tagPalette.ts, graphPrefs.ts,
+        │                # tocCollapsed.ts / treeOpenState.ts (estado de UI por navegador)
         └── styles/      # tokens.css (identidade, ver docs/DESIGN.md), global.css
 ```
 
@@ -186,10 +174,18 @@ CLI) for construído em cima algum dia.
 Quatro abas na sidebar (nenhuma é "a tela principal") mais o Leitor, que não
 é aba — ver "Polimento pós-lançamento" abaixo pra entender por quê:
 
-1. **Grafo** — um placeholder ("Graph — em breve") por enquanto;
-   deliberadamente por último na prioridade (ver
-   [docs/ARQUITETURA.md](docs/ARQUITETURA.md#placeholder-do-grafo-por-que-fica-por-último)).
-   Listado primeiro na sidebar mesmo assim, por escolha explícita.
+1. **Grafo** — um grafo force-directed do vault: um ponto por nó, uma aresta
+   não-direcionada por link interno resolvido (`GET /api/graph` →
+   `domain/buildGraph`). Pan (arrastar) / zoom (scroll), clicar num nó abre
+   ele no Leitor, hover destaca a vizinhança. Controles (salvos por
+   navegador): cor pela tag mais específica ou pela primeira — reaproveitando
+   o mapa de cores de tag do Ajustes, com paleta ANSI automática pras tags
+   sem cor — tamanho por nº de backlinks, rótulos on/off, recentralizar. O
+   layout é uma pequena simulação de força escrita à mão (sem d3 — o vault
+   tem ~70 nós); ver
+   [docs/ARQUITETURA.md](docs/ARQUITETURA.md#10-a-tela-do-grafo). Listado
+   primeiro na sidebar por escolha explícita, mesmo tendo sido feito por
+   último.
 2. **Estante (Shelf)** — uma estante de cadernos; cada caderno é um conjunto
    curado de *referências* a nós (arrastar um nó pra dentro não move nada —
    funciona tanto no card fechado da estante quanto dentro de um caderno já
@@ -228,6 +224,7 @@ Isto é uma lista de referência, não uma spec OpenAPI completa — ver
 | GET | `/api/node?path=` | um nó parseado + seus backlinks + URIs de abrir no Obsidian/VS Code |
 | GET | `/api/search?q=&limit=` | busca por título/heading/corpo/caminho (também alimenta o quick-switcher) |
 | GET | `/api/board` | dados agregados da tela Console: linhas de tarefas, índices desatualizados, links quebrados/fora, órfãos |
+| GET | `/api/graph` | dados da tela Grafo: um nó por arquivo (título, tags, kind, nº de fontes distintas que apontam pra ele), uma aresta não-direcionada e deduplicada por link interno resolvido |
 | GET/PUT | `/api/settings` | ajustes de leitura/aparência (`settings.yaml` da Casa A) |
 | GET/PUT | `/api/config` | caminho atual do vault + caminhos recentes; `PUT` dispara um re-walk + reindex completos |
 | GET/POST | `/api/notebooks` | listar / criar cadernos (`cadernos/*.md` da Casa A) |
@@ -247,8 +244,8 @@ Isto é uma lista de referência, não uma spec OpenAPI completa — ver
   do vault e por quê, o pipeline `domain` → `server` → `web`, por que o
   reindex é completo e não incremental, por que `remark` em vez de
   CodeMirror, hardening de rede, por que o `node` roda dentro do WSL, a
-  regressão do teste de fence, falhas de teste conhecidas, e o que está
-  explicitamente fora de escopo nesta versão.
+  regressão do teste de fence, a tela do grafo, e o que está explicitamente
+  fora de escopo nesta versão.
 - [docs/DESIGN.md](docs/DESIGN.md) — identidade visual (herdada 1:1 do
   `mind-landing`), tokens de design, a paleta de tags deliberadamente sem
   verde, a assinatura do chrome de terminal.
@@ -295,6 +292,25 @@ resumo do que mudou:
   mudança de arquivo do vault) do qual toda chamada `useApi` agora também
   depende, então a mutação de pin/recente de qualquer tela atualiza todas
   as outras na hora.
+
+Mais tarde no mesmo dia, três correções e a última tela do MVP:
+
+- **Contagem de tarefas**: o `domain` contava **todo** item de lista como
+  tarefa, então os bullets de prosa do `docs/ARQUITETURA.md` inflavam o
+  board do Console. Agora um item de lista só é tarefa se for checkbox GFM
+  (`[ ]`/`[x]`) ou o `[~]` pausado do vault. Isso também deixou o
+  `fence.test.ts` parar de fixar número de linha absoluto / contagem total
+  de tarefas (ambos mudam com edição normal do vault) e checar por conteúdo
+  — as duas falhas antigas do `domain` sumiram.
+- **TOC do Leitor**: um botão `☰ Índice` na toolbar do nó recolhe o rail de
+  260px por completo (salvo por navegador); útil em janela estreita.
+  Separado do toggle global "Índice (TOC) por nó" do Ajustes.
+- **Barra de rolagem dupla no Leitor**: `.reader-layout` era `height:100%` e,
+  sob o chrome de terminal, estourava o `.screen-area` — um wrapper
+  `.reader-screen` flex agora mantém o chrome fixo e deixa só a coluna do
+  artigo rolar.
+- **Grafo**: o placeholder foi embora — ver "Telas" acima e
+  [docs/ARQUITETURA.md §10](docs/ARQUITETURA.md#10-a-tela-do-grafo).
 
 ## Nome
 

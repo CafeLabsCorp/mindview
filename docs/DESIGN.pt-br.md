@@ -46,7 +46,7 @@ Ajustes.
 | `--muted` | `#c3c2b7` | `#52514e` | texto secundário |
 | `--subtle` | `#8a887f` | `#898781` | texto terciário, legendas |
 | `--border` | `rgba(255,255,255,.1)` | `rgba(11,11,11,.1)` | bordas |
-| `--green` | `#3fb950` | `#1a7f37` | **o accent** — CTAs, estado ativo, prompt, o futuro hub do grafo |
+| `--green` | `#3fb950` | `#1a7f37` | **o accent** — CTAs, estado ativo, prompt, os nós-hub de índice do grafo |
 | `--blue` | `#5b9eea` | `#1e5aa8` | accent secundário (ganhou uso real aqui — era um token não usado, `TODO: confirmar`, no `mind-landing`) |
 | `--danger` | `#f0655c` | (igual) | links quebrados, o guarda-corpo de contraste |
 | `--radius` | `14px` | | raio de canto padrão |
@@ -77,9 +77,11 @@ lgpd:     #f0655c                              financeiro: #8a7226
 marketing: #e685b5                             distribuicao: #e0913a
 ```
 
-Verde fica reservado pra cor de destaque/sistema (botões, estados ativos, o
-eventual hub do grafo) exatamente pra que uma pill de tag nunca seja
-visualmente confundível com "isto é clicável/ativo." (O default de
+Verde fica reservado pra cor de destaque/sistema (botões, estados ativos,
+os nós-hub de índice do grafo) exatamente pra que uma pill de tag nunca seja
+visualmente confundível com "isto é clicável/ativo." A tela Grafo segue a
+mesma regra — a cor dos nós vem desta paleta (ou de um fallback via hash do
+mesmo conjunto ANSI), nunca do verde do accent. (O default de
 `cafelabs` reaproveita o hex do verde como valor inicial nos defaults
 enviados — toda cor de tag é editável pelo usuário em Ajustes, então isso
 não é uma regra rígida imposta em código, só a intenção do conjunto de

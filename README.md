@@ -116,31 +116,18 @@ npm run test -w web   # web has its own vitest config; not wired into the root s
 
 | Workspace | Status | What it covers |
 | --- | --- | --- |
-| `domain` | **29/31 passing — 2 known failures, see below** | parser, index builder, selectors (search, board, staleness, broken/outside links, orphans) |
-| `server` | 8/8 passing | end-to-end HTTP tests against a disposable vault fixture |
+| `domain` | 36/36 passing | parser, index builder, selectors (search, board, staleness, broken/outside links, orphans, graph) |
+| `server` | 10/10 passing | end-to-end HTTP tests against a disposable vault fixture |
 | `web` | 5/5 passing | includes the real WCAG contrast guard-rail (`src/lib/contrast.test.ts`) |
 
-### Known failures in `npm run test -w domain` (do not "fix" by editing the vault)
-
-Two `domain` tests fail today (originally four — one root cause, covering
-two assertions, was fixed directly in the vault on 2026-09-05), and **both
-remaining ones are drift in the live Mind vault's content, not a parser
-regression** — confirmed by re-running the parser by hand against the
-current file contents. Full detail, root causes, and the suggested (not yet
-scheduled) fix in
-[docs/ARQUITETURA.md](docs/ARQUITETURA.md#known-test-failures-technical-debt).
-Short version:
-
-1. `docs/ARQUITETURA.md` (in the vault) grew above the fenced YAML example
-   the test points at, so the hardcoded line number (`bytes.split('\n')[77]`)
-   no longer lands on the `---` it expects.
-2. The same content growth gave that file real bullet lists, which the
-   parser's task-detection (any list item, not just `- [ ]` checkboxes)
-   picks up — so a test asserting "zero tasks in this fenced-example
-   fixture" now sees the file's real, unrelated bullet points.
-
-These are vault-content problems, not `domain` bugs — do not edit the vault
-or the test to make them pass without reading the linked section first.
+The `domain` suite had four vault-drift failures through early 2026-09-05;
+all are resolved. Two were a broken `SKILL.md` frontmatter line + a
+mis-quoted `description:`, fixed in the vault. The other two were
+`fence.test.ts` pinning an absolute line number and a total task count
+against the live `docs/ARQUITETURA.md` — the test now locates the mid-doc
+`---` by scanning and asserts by content, and the parser only counts a list
+item as a task when it's a `[ ]`/`[x]`/`[~]` item (see
+[docs/ARQUITETURA.md §9](docs/ARQUITETURA.md#9-known-test-failures-technical-debt)).
 
 ## Folder structure
 
@@ -164,11 +151,13 @@ mindview/
 │   └── test/           # server.test.ts — HTTP tests against a disposable vault fixture
 └── web/               # @mindview/web — Vite + React 19 UI
     └── src/
-        ├── screens/     # Reader, Shelf, Console, GraphPlaceholder, SettingsScreen
+        ├── screens/     # Reader, Shelf, Console, GraphScreen, SettingsScreen
         ├── components/  # Sidebar, Tree, QuickSwitcher, TerminalChrome, MarkdownBody, …
-        ├── context/     # TreeContext, SettingsContext, ReindexContext
+        ├── context/     # TreeContext, SettingsContext, ReindexContext, AppStateEvents
         ├── api/         # client.ts, types.ts — thin fetch wrapper + shared response shapes
-        ├── lib/         # hashRoute.ts, contrast.ts (WCAG), remarkTaskStates.ts, useThemeColors.ts
+        ├── lib/         # hashRoute.ts, contrast.ts (WCAG), remarkTaskStates.ts, useThemeColors.ts,
+        │                # graphLayout.ts (hand-rolled force layout), tagPalette.ts, graphPrefs.ts,
+        │                # tocCollapsed.ts / treeOpenState.ts (per-browser UI state)
         └── styles/      # tokens.css (identity, see docs/DESIGN.md), global.css
 ```
 
@@ -182,9 +171,16 @@ reused unmodified if a second frontend (or a CLI) is ever built on top.
 Four tabs in the sidebar (none is "the home screen") plus the Reader, which
 isn't a tab — see "Post-launch polish" below for why:
 
-1. **Grafo** — a placeholder ("Graph — coming soon") for now; deliberately
-   last in priority (see [docs/ARQUITETURA.md](docs/ARQUITETURA.md#graph-placeholder-why-its-last)).
-   Listed first in the sidebar regardless, by explicit choice.
+1. **Grafo** — a force-directed graph of the vault: one dot per node, an
+   undirected edge per resolved internal link (`GET /api/graph` →
+   `domain/buildGraph`). Pan (drag) / zoom (wheel), click a node to open it
+   in the Reader, hover to highlight its neighbourhood. Controls (persisted
+   per browser): colour by most-specific or first tag — reusing the Ajustes
+   tag→colour map, with an auto ANSI-palette fallback for uncoloured tags —
+   node size by backlink count, labels on/off, recenter. The layout is a
+   small hand-rolled force simulation (no d3 — the vault is ~70 nodes); see
+   [docs/ARQUITETURA.md](docs/ARQUITETURA.md#10-the-graph-screen). Listed
+   first in the sidebar by explicit choice, even though it was built last.
 2. **Estante** (Shelf) — a shelf of notebooks (cadernos); each notebook is a
    curated set of node *references* (drag a node in, it doesn't move
    anything — works both from the shelf's closed cover card and from inside
@@ -221,6 +217,7 @@ exact request/response shapes.
 | GET | `/api/node?path=` | one parsed node + its backlinks + Obsidian/VS Code open URIs |
 | GET | `/api/search?q=&limit=` | title/heading/body/path search (also backs the quick-switcher) |
 | GET | `/api/board` | Console screen's aggregated data: task rows, stale indexes, broken/outside links, orphans |
+| GET | `/api/graph` | Grafo screen's data: one node per file (title, tags, kind, distinct-inbound count), one undirected deduped edge per resolved internal link |
 | GET/PUT | `/api/settings` | reading/appearance settings (Casa A `settings.yaml`) |
 | GET/PUT | `/api/config` | current vault path + recent vault paths; `PUT` triggers a full re-walk + reindex |
 | GET/POST | `/api/notebooks` | list / create notebooks (Casa A `cadernos/*.md`) |
@@ -240,7 +237,7 @@ exact request/response shapes.
   outside the vault and why, the `domain` → `server` → `web` pipeline, why reindex
   is full rather than incremental, why `remark` rather than CodeMirror,
   network hardening, why `node` runs inside WSL, the fence-test regression,
-  known test failures, and what's explicitly out of scope this version.
+  the graph screen, and what's explicitly out of scope this version.
 - [docs/DESIGN.md](docs/DESIGN.md) — visual identity (inherited 1:1 from
   `mind-landing`), design tokens, the deliberately green-free tag palette,
   the terminal-chrome signature.
@@ -285,6 +282,25 @@ in `mind/tarefas/empresa/mindview.md`; summary of what changed:
   instead of vault-file changes) that every `useApi` call now also depends
   on, so any screen's pin/recent mutation refreshes every other screen
   immediately.
+
+Later the same day, three more fixes and the last MVP screen:
+
+- **Task counting**: `domain` counted *every* list item as a task, so
+  `docs/ARQUITETURA.md`'s prose bullets inflated the Console board. Now a
+  list item is a task only if it's a GFM checkbox (`[ ]`/`[x]`) or the
+  vault's `[~]` paused convention. This also let `domain/test/fence.test.ts`
+  stop pinning an absolute line number / total task count (both drift with
+  normal vault edits) and assert by content instead — the two long-standing
+  `domain` test failures are gone.
+- **Reader TOC**: a `☰ Índice` toggle in the node toolbar collapses the
+  260px TOC rail entirely (persisted per browser); useful on a narrow
+  window. Separate from the global Ajustes "Índice (TOC) por nó" switch.
+- **Reader double scrollbar**: `.reader-layout` was `height:100%` and, under
+  the terminal chrome, overflowed `.screen-area` — a `.reader-screen` flex
+  wrapper now keeps the chrome fixed and lets only the article column
+  scroll.
+- **Grafo**: the placeholder is gone — see "Screens" above and
+  [docs/ARQUITETURA.md §10](docs/ARQUITETURA.md#10-the-graph-screen).
 
 ## Naming
 

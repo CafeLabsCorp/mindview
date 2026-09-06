@@ -9,6 +9,7 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { useHashRoute } from './lib/hashRoute';
 import { TreeProvider } from './context/TreeContext';
 import { useSettings } from './context/SettingsContext';
+import { TerminalBar } from './components/TerminalBar';
 import { loadTerminalPanelState, saveTerminalPanelState } from './lib/terminalPanelState';
 
 // xterm.js is ~250 KB and the terminal ships disabled, so it is code-split
@@ -23,6 +24,10 @@ export default function App() {
   const [terminal, setTerminal] = useState(loadTerminalPanelState);
 
   const terminalEnabled = settings.terminalEnabled;
+  // Once opened, the panel stays mounted for the rest of the session even
+  // while minimised — unmounting it would close every socket and kill the
+  // shells, which is what "encerrar" is for.
+  const [terminalMounted, setTerminalMounted] = useState(() => terminal.open);
   const setTerminalOpen = useCallback((open: boolean) => {
     setTerminal((prev) => {
       const next = { ...prev, open };
@@ -31,6 +36,7 @@ export default function App() {
     });
   }, []);
   const toggleTerminal = useCallback(() => {
+    setTerminalMounted(true);
     setTerminal((prev) => {
       const next = { ...prev, open: !prev.open };
       saveTerminalPanelState(next);
@@ -80,11 +86,18 @@ export default function App() {
             {route.screen === 'grafo' && <GraphScreen />}
             {route.screen === 'ajustes' && <SettingsScreen />}
           </div>
-          {terminalEnabled && terminal.open && (
+          {terminalEnabled && terminalMounted && (
             <Suspense fallback={null}>
-              <TerminalPanel height={terminal.height} onHeightChange={setTerminalHeight} onClose={() => setTerminalOpen(false)} />
+              <TerminalPanel
+                visible={terminal.open}
+                height={terminal.height}
+                onHeightChange={setTerminalHeight}
+                onMinimize={() => setTerminalOpen(false)}
+                onAllClosed={() => setTerminalOpen(false)}
+              />
             </Suspense>
           )}
+          <TerminalBar enabled={terminalEnabled} open={terminal.open} onToggle={toggleTerminal} />
         </div>
       </div>
       <QuickSwitcher open={searchOpen} onClose={() => setSearchOpen(false)} />

@@ -1,172 +1,74 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import '@xterm/xterm/css/xterm.css';
-import { terminalSocketUrl } from '../api/client';
+import { useCallback, useEffect, useState } from 'react';
+import { TerminalView, type TerminalStatus } from './TerminalView';
 import { useSettings } from '../context/SettingsContext';
 import { clampHeight, MAX_PANEL_HEIGHT, MIN_PANEL_HEIGHT } from '../lib/terminalPanelState';
 
-type Status = 'connecting' | 'ready' | 'exited' | 'error';
+interface Tab {
+  id: number;
+  /** Bumping this restarts the shell in place, keeping the tab. */
+  restartKey: number;
+  status: TerminalStatus;
+  detail: string;
+}
 
 interface Props {
+  /** Minimised, not unmounted: the panel keeps rendering (hidden) so every
+   * tab's socket — and therefore its shell — stays alive. Unmounting would
+   * be indistinguishable from "encerrar". */
+  visible: boolean;
   height: number;
   onHeightChange: (px: number) => void;
-  onClose: () => void;
+  onMinimize: () => void;
+  /** Called when the last tab is closed — nothing left to show. */
+  onAllClosed: () => void;
 }
 
-/** Reads the live token values rather than hardcoding hexes, so the
- * terminal follows the accent chosen in Ajustes and the app's light/dark
- * switch. Background stays --code-bg (fixed dark in both themes, by
- * design — see styles/tokens.css): a terminal on a white page reads
- * wrong, and those --on-code-* tokens exist for exactly this surface. */
-function readXtermTheme(): Record<string, string> {
-  const s = getComputedStyle(document.documentElement);
-  const v = (name: string, fallback: string) => s.getPropertyValue(name).trim() || fallback;
-  const accent = v('--accent', '#3fb950');
-  return {
-    background: v('--code-bg', '#0a0a0a'),
-    foreground: v('--on-code', '#c3c2b7'),
-    cursor: accent,
-    cursorAccent: v('--code-bg', '#0a0a0a'),
-    selectionBackground: 'rgba(255,255,255,0.18)',
-    // ANSI set kept in the app's own palette (the tag colours) instead of
-    // xterm's defaults, which clash with the Mind identity.
-    black: '#1c1c1a',
-    red: '#f0655c',
-    green: accent,
-    yellow: '#e0913a',
-    blue: '#45b8c4',
-    magenta: '#a78bfa',
-    cyan: '#45b8c4',
-    white: '#c3c2b7',
-    brightBlack: '#8a887f',
-    brightRed: '#f0655c',
-    brightGreen: accent,
-    brightYellow: '#e0913a',
-    brightBlue: '#45b8c4',
-    brightMagenta: '#e685b5',
-    brightCyan: '#45b8c4',
-    brightWhite: '#f2f1ec',
-  };
-}
+let nextTabId = 1;
 
-export function TerminalPanel({ height, onHeightChange, onClose }: Props) {
+export function TerminalPanel({ visible, height, onHeightChange, onMinimize, onAllClosed }: Props) {
   const { settings } = useSettings();
-  const hostRef = useRef<HTMLDivElement>(null);
-  const termRef = useRef<Terminal | null>(null);
-  const fitRef = useRef<FitAddon | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const [status, setStatus] = useState<Status>('connecting');
-  const [detail, setDetail] = useState<string>('');
-  const [generation, setGeneration] = useState(0); // bumped to force a fresh shell
+  // Starts empty and fills in when the panel is first shown: a tab mounts
+  // a shell the moment it exists, and starting `claude` behind a hidden
+  // panel would be both wasteful and surprising.
+  const [tabs, setTabs] = useState<Tab[]>([]);
+  const [activeId, setActiveId] = useState<number>(0);
+  const active = tabs.find((t) => t.id === activeId) ?? null;
 
-  const fontSize = settings.terminalFontSize;
+  const setTabState = useCallback((id: number, status: TerminalStatus, detail: string) => {
+    setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, status, detail } : t)));
+  }, []);
 
-  // One effect owns the whole lifecycle (xterm + socket): they are born and
-  // die together, and splitting them into two effects would let a stale
-  // socket write into a disposed terminal on remount.
+  const openTab = useCallback(() => {
+    const tab: Tab = { id: nextTabId++, restartKey: 0, status: 'connecting', detail: '' };
+    setTabs((prev) => [...prev, tab]);
+    setActiveId(tab.id);
+  }, []);
+
+  const closeTab = useCallback(
+    (id: number) => {
+      // Unmounting the view is what kills the shell: its cleanup closes the
+      // socket, and the server kills the PTY on 'close'. This is the whole
+      // difference between "encerrar" and "minimizar".
+      //
+      // Computed from the current tabs rather than inside a setState
+      // updater: updaters must be pure, and StrictMode runs them twice.
+      const next = tabs.filter((t) => t.id !== id);
+      setTabs(next);
+      if (next.length === 0) onAllClosed();
+      else if (activeId === id) setActiveId(next[next.length - 1].id);
+    },
+    [tabs, activeId, onAllClosed],
+  );
+
+  // Opening the panel with nothing in it starts one session — including
+  // the very first time, and again after everything was closed.
   useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
+    if (visible && tabs.length === 0) openTab();
+  }, [visible, tabs.length, openTab]);
 
-    const term = new Terminal({
-      fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-      fontSize,
-      lineHeight: 1.2,
-      cursorBlink: true,
-      scrollback: 5000,
-      theme: readXtermTheme(),
-    });
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.open(host);
-    fit.fit();
-    termRef.current = term;
-    fitRef.current = fit;
-
-    const ws = new WebSocket(terminalSocketUrl(term.cols, term.rows));
-    ws.binaryType = 'arraybuffer';
-    wsRef.current = ws;
-
-    // stream:true matters: a UTF-8 character can be split across two
-    // frames, and decoding each chunk independently would print garbage.
-    const decoder = new TextDecoder('utf-8');
-
-    ws.onmessage = (ev) => {
-      if (typeof ev.data === 'string') {
-        try {
-          const msg = JSON.parse(ev.data) as { t?: string; message?: string; shell?: string; cwd?: string; exitCode?: number; mode?: string };
-          if (msg.t === 'ready') {
-            setStatus('ready');
-            setDetail(msg.mode === 'command' ? `${msg.cwd ?? ''}` : `${msg.shell ?? ''} · ${msg.cwd ?? ''}`);
-          } else if (msg.t === 'exit') {
-            setStatus('exited');
-            // 127 is the shell's "command not found". Saying so beats
-            // echoing a bare exit code the reader has to look up — and it
-            // is the exact case of someone who hasn't installed Claude
-            // Code yet.
-            setDetail(
-              msg.exitCode === 127
-                ? 'comando não encontrado nesta máquina — instale-o, ou troque o "comando ao abrir" nos Ajustes'
-                : `sessão encerrada (código ${msg.exitCode ?? 0})`,
-            );
-          } else if (msg.t === 'error') {
-            setStatus('error');
-            setDetail(msg.message ?? 'erro desconhecido');
-          }
-        } catch {
-          /* not a control message we understand — ignore */
-        }
-        return;
-      }
-      term.write(decoder.decode(ev.data as ArrayBuffer, { stream: true }));
-    };
-    ws.onerror = () => {
-      setStatus((s) => (s === 'exited' ? s : 'error'));
-      setDetail((d) => d || 'não consegui abrir a conexão com o servidor');
-    };
-    ws.onclose = () => setStatus((s) => (s === 'ready' || s === 'connecting' ? 'exited' : s));
-
-    const disposeData = term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'input', d: data }));
-    });
-
-    const sendResize = () => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'resize', cols: term.cols, rows: term.rows }));
-    };
-    const disposeResize = term.onResize(sendResize);
-
-    // The panel is resized by dragging and by window changes alike, so the
-    // observer covers both instead of a window 'resize' listener.
-    const observer = new ResizeObserver(() => {
-      try {
-        fit.fit();
-      } catch {
-        /* host detached mid-teardown */
-      }
-    });
-    observer.observe(host);
-
-    return () => {
-      observer.disconnect();
-      disposeData.dispose();
-      disposeResize.dispose();
-      ws.onmessage = null;
-      ws.onclose = null;
-      ws.onerror = null;
-      ws.close();
-      term.dispose();
-      termRef.current = null;
-      fitRef.current = null;
-      wsRef.current = null;
-    };
-  }, [generation, fontSize]);
-
-  // Theme/accent changes don't justify tearing the shell down — repaint in
-  // place instead, which is why this is a separate effect.
-  useEffect(() => {
-    if (termRef.current) termRef.current.options.theme = readXtermTheme();
-  }, [settings.accent, settings.theme]);
+  const restartTab = useCallback((id: number) => {
+    setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, restartKey: t.restartKey + 1, status: 'connecting', detail: '' } : t)));
+  }, []);
 
   const startDrag = useCallback(
     (e: React.PointerEvent) => {
@@ -185,7 +87,7 @@ export function TerminalPanel({ height, onHeightChange, onClose }: Props) {
   );
 
   return (
-    <section className="terminal-panel" style={{ height }} aria-label="Terminal">
+    <section className="terminal-panel" style={{ height }} aria-label="Terminal" hidden={!visible}>
       <div
         className="terminal-resize-handle"
         onPointerDown={startDrag}
@@ -202,25 +104,47 @@ export function TerminalPanel({ height, onHeightChange, onClose }: Props) {
         }}
       />
       <header className="terminal-panel-head">
-        <span className="terminal-panel-title mono">terminal</span>
-        <span className={`terminal-panel-status is-${status}`}>
-          {status === 'connecting' && 'conectando…'}
-          {status === 'ready' && detail}
-          {status === 'exited' && detail}
-          {status === 'error' && detail}
-        </span>
+        <div className="terminal-tabs" role="tablist" aria-label="Sessões de terminal">
+          {tabs.map((tab, i) => (
+            <div key={tab.id} className={`terminal-tab${tab.id === activeId ? ' is-active' : ''}`}>
+              <button role="tab" aria-selected={tab.id === activeId} className="terminal-tab-label mono" onClick={() => setActiveId(tab.id)}>
+                <span className={`terminal-tab-dot is-${tab.status}`} aria-hidden="true" />
+                terminal {i + 1}
+              </button>
+              <button className="terminal-tab-close" onClick={() => closeTab(tab.id)} aria-label={`Encerrar terminal ${i + 1}`} title="Encerrar esta sessão">
+                ✕
+              </button>
+            </div>
+          ))}
+          {/* Plain ASCII '+': the fullwidth '＋' has no glyph in JetBrains
+              Mono and rendered as tofu. */}
+          <button className="terminal-tab-new" onClick={openTab} aria-label="Nova sessão de terminal" title="Nova sessão">
+            +
+          </button>
+        </div>
+        <span className={`terminal-panel-status is-${active?.status ?? 'connecting'}`}>{active?.detail ?? ''}</span>
         <div className="terminal-panel-actions">
-          {(status === 'exited' || status === 'error') && (
-            <button className="btn btn-ghost btn-sm" onClick={() => setGeneration((g) => g + 1)}>
+          {active && (active.status === 'exited' || active.status === 'error') && (
+            <button className="btn btn-ghost btn-sm" onClick={() => restartTab(active.id)}>
               reabrir
             </button>
           )}
-          <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Fechar o terminal">
-            ✕
+          <button className="btn btn-ghost btn-sm" onClick={onMinimize} aria-label="Minimizar o terminal" title="Minimizar — as sessões continuam rodando">
+            —
           </button>
         </div>
       </header>
-      <div className="terminal-panel-body" ref={hostRef} />
+      <div className="terminal-panel-body">
+        {tabs.map((tab) => (
+          <TerminalView
+            key={tab.id}
+            active={visible && tab.id === activeId}
+            fontSize={settings.terminalFontSize}
+            restartKey={tab.restartKey}
+            onStatus={(status, detail) => setTabState(tab.id, status, detail)}
+          />
+        ))}
+      </div>
     </section>
   );
 }

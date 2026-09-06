@@ -1635,10 +1635,148 @@ input[type='color']::-moz-color-swatch {
 .terminal-panel-body {
   flex: 1;
   min-height: 0;
-  padding: 4px 6px 0 10px;
+  position: relative;
   overflow: hidden;
 }
 
-.terminal-panel-body .xterm {
+/* Every session stays mounted; only the active one is shown. Absolute
+   positioning keeps hidden ones out of the flow without collapsing the
+   container, so switching tabs doesn't reflow the panel. */
+.terminal-view {
+  position: absolute;
+  inset: 0;
+  padding: 4px 6px 0 10px;
+}
+
+.terminal-view-host {
   height: 100%;
+}
+
+.terminal-view-host .xterm {
+  height: 100%;
+}
+
+/* --------------------------------------------------- terminal tab strip */
+
+.terminal-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  color: var(--on-code-subtle);
+}
+
+.terminal-tab.is-active {
+  background: var(--surface-2);
+  color: var(--on-code);
+}
+
+.terminal-tab-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 3px 4px 3px 8px;
+  cursor: pointer;
+}
+
+/* Session state at a glance, so a tab that died in the background is
+   visible without switching to it. */
+.terminal-tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.terminal-tab-dot.is-connecting {
+  background: var(--on-code-subtle);
+}
+
+.terminal-tab-dot.is-exited {
+  background: var(--muted);
+}
+
+.terminal-tab-dot.is-error {
+  background: var(--danger);
+}
+
+.terminal-tab-close,
+.terminal-tab-new {
+  background: none;
+  border: 0;
+  color: var(--on-code-subtle);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+
+.terminal-tab-close:hover,
+.terminal-tab-new:hover {
+  color: var(--on-code);
+  background: var(--surface-2);
+}
+
+.terminal-tab-new {
+  font-size: 13px;
+  margin-left: 4px;
+}
+
+/* ------------------------------------------------------- terminal bar */
+
+/* Always present, even with the feature switched off — a silent opt-in is
+   undiscoverable, and the app shipped with no affordance at all. */
+.terminal-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 26px;
+  padding: 0 10px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.terminal-bar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.terminal-bar-btn:hover {
+  color: var(--fg);
+  background: var(--surface-2);
+}
+
+.terminal-bar-btn[aria-expanded='true'] {
+  color: var(--accent);
+}
+
+.terminal-bar-btn.is-off {
+  color: var(--subtle);
+}
+
+.terminal-bar-hint {
+  color: var(--subtle);
+  font-size: 11px;
 }

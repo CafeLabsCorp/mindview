@@ -476,15 +476,29 @@ ao lado de um grafo que dava um tom pra cada.
 Listado pra ninguém reabrir isso como "isso foi só esquecido?" — cada item
 foi uma decisão deliberada, não um descuido:
 
-- **Empacotamento em Electron.** O MindView é um app web local (Vite + um
-  server Node) hoje; Electron é adiado até que se queira de fato um
+- **Empacotamento em Electron.** Ainda fora de escopo *nesta versão*, mas a
+  decisão mudou em 2026-09-06: o Electron **vai** acontecer, só como
+  janela — o server Node e o PTY ficam no próprio processo e o Electron só
+  emoldura `http://127.0.0.1:<porta>`, subindo o backend ao abrir e matando
+  ao fechar. Esse formato dissolve a objeção registrada abaixo: o Electron
+  nunca carrega o `node-pty`, então não há `electron-rebuild` contra o ABI
+  do Electron. Também mantém um app só pra dois modos de partida — subir
+  `node` nativo (o caso ordinário: alguém no Windows com o vault em
+  `Documentos`, `claude` instalado nativo e PowerShell como shell) ou subir
+  dentro do WSL (o caso incomum, que é o deste vault). Nota original,
+  mantida como registro: o MindView é um app web local (Vite + um
+  server Node) hoje; Electron foi adiado até que se queira de fato um
   ícone/janela de app, já que nem o seletor de caminho do vault nem o
   terminal da Fase 2 precisam dele de verdade — um diálogo nativo do
   Explorer é a única coisa que Electron adicionaria de graça agora, e
   digitar/colar um caminho mais uma lista de "recentes" (espelhando como o
   próprio trocador de vault do Obsidian funciona) cobre a mesma necessidade
   sem o custo de empacotamento.
-- **Um terminal embutido.** Planejado pra uma fase posterior (xterm.js +
+- ~~**Um terminal embutido.**~~ **Entregue em 2026-09-06 — ver §12 abaixo.**
+  A fronteira de transporte mantida em aberto pra isso era exatamente o que
+  faltava: o `/api/events` seguiu SSE e o terminal ganhou o próprio
+  WebSocket. Nota original mantida como registro: planejado pra uma fase
+  posterior (xterm.js +
   node-pty, rodando o CLI do Claude Code dentro do app) — deliberadamente
   mais fácil nesse setup web-local + WSL do que seria em Electron
   (`node-pty` precisa de `electron-rebuild` contra o ABI do Electron; aqui
@@ -512,3 +526,106 @@ foi uma decisão deliberada, não um descuido:
 - **Sincronização em nuvem, mobile, contas, API paga.** Desktop-only,
   local-only, single-user por construção — não há estado do lado servidor
   que assuma mais de uma pessoa usando uma máquina.
+
+## 12. O terminal embutido
+
+Entregue na Fase 2 (2026-09-06). O objetivo é estreito e concreto: rodar o
+CLI do Claude Code *dentro* do MindView, no vault, sem pagar por uma
+integração de IA por API pay-as-you-go — reaproveita o CLI e o plano que já
+existem.
+
+**Por que um PTY e não um cano comum.** Um pseudo-terminal é o que faz um
+programa interativo acreditar que tem uma pessoa digitando numa tela de
+verdade. Programas perguntam ao sistema "estou falando com um terminal ou
+com um cano?" e se comportam diferente: o `ls` desliga as cores quando a
+saída vai pra um arquivo. Uma TUI de tela cheia como o `claude` precisa de
+muito mais que cor — as linhas/colunas da janela (e um aviso quando elas
+mudam), cada tecla entregue na hora em vez de uma linha inteira no Enter,
+códigos de escape pra mover o cursor, e o Ctrl+C chegando como *sinal* em
+vez de caractere literal. Nada disso existe num stdio comum, então sem PTY
+o `claude` simplesmente não consegue desenhar a interface. O `node-pty`
+(`server/src/app/terminalService.ts`) é a mesma biblioteca do terminal do
+VS Code; ela carrega código nativo porque criar um PTY é uma chamada direta
+do sistema operacional, não algo que o JavaScript faça sozinho.
+
+**Por que WebSocket, e uma correção honesta.** Um terminal precisa de um
+canal bidirecional de baixa latência; o `/api/events` é SSE, que só empurra
+server→cliente. As alternativas pesadas foram: implementar o RFC6455 à mão
+(~150 linhas de framing binário, masking, fragmentação e ping/pong — peça
+plausível de portfólio, mas onde bug sutil se esconde) e SSE mais um POST
+por tecla (sem dependência nova, mas cada tecla vira uma requisição HTTP, e
+uma TUI de tela cheia sentiria). O `ws` ganhou: zero dependências próprias,
+~100 KB, JS puro. O trade-off foi originalmente argumentado como "o server
+perde a pureza de zero dependências de runtime" — **essa moldura estava
+errada**: `chokidar` e `yaml` já eram dependências de runtime. Não havia
+pureza a proteger, só a pergunta ordinária de se a dependência se paga.
+
+**O portão do upgrade** (`server/src/http/terminalSocket.ts`). Um `upgrade`
+HTTP nunca chega no handler normal de requisição, então toda guarda do
+`server/src/index.ts` precisa ser reaplicada à mão. Quatro checagens, em
+ordem: caminho, `Host` (anti DNS-rebinding, §6), `Origin` e o token da
+execução — mais o terminal estar habilitado nos ajustes. **A checagem de
+`Origin` não é redundante com o token.** A same-origin policy *não* cobre
+WebSockets: qualquer página da internet pode abrir um pra `127.0.0.1` (isso
+é Cross-Site WebSocket Hijacking), e aqui o que está do outro lado é um
+shell. Em dev ela é, na verdade, a *única* tranca cross-origin que sobra,
+porque o proxy do Vite reescreve o `Host` (`changeOrigin`) e a checagem
+anti-rebinding passa por construção.
+
+A allowlist é um **conjunto exato** de origens — a do próprio server, mais
+a origem de dev do Vite fixada (`MINDVIEW_DEV_ORIGIN`, padrão
+`http://localhost:5173`, que é por isso que o `web/vite.config.ts` usa
+`strictPort: true`). Uma versão anterior aceitava *qualquer* porta de
+loopback, e a revisão de segurança mostrou que isso era explorável ponta a
+ponta: a política de CORS padrão do Vite responde a qualquer origem de
+loopback, o HTML que ele serve carrega o token da execução, então uma
+página em qualquer outra porta local podia ler o token e abrir um shell com
+ele. Daí também o `cors: false` na config do Vite — a SPA só faz fetch
+same-origin, então não custa nada. Um `Origin` ausente é permitido:
+navegadores sempre mandam um no handshake de WebSocket, então isso só
+admite clientes não-navegador, que ainda precisam do token.
+
+**`terminalEnabled` é um interruptor de usabilidade, não uma fronteira de
+segurança.** Quem tem o token pode religá-lo por `PUT /api/settings` e
+conectar. A fronteira é o token — e é por isso que ele não é mais impresso
+no console e que Casa A/B são criadas `0700` com arquivos escritos `0600`:
+esses dois fatos decidem o tamanho do estrago quando ele vaza. Os ajustes
+de terminal que chegam no `spawn` são coagidos de tipo a cada leitura
+(`sanitizeTerminal` no `houseA.ts`), porque o `settings.yaml` é escrito por
+um endpoint HTTP e editável em disco — não é um arquivo confiável.
+
+**Protocolo de fio, deliberadamente assimétrico.** Server→cliente: frames
+binários são saída crua do terminal (volume alto, sem motivo pra escapar
+cada pedaço em JSON), frames de texto são controle JSON (`ready` / `exit` /
+`error`). Cliente→server: só JSON em texto (`input` / `resize`) — teclas
+são minúsculas, então clareza ganha de bytes. O navegador decodifica a
+saída com um `TextDecoder` em modo streaming, porque um caractere UTF-8
+pode ser partido entre dois frames.
+
+**Desligado por padrão.** Um app web local capaz de abrir um shell
+arbitrário é uma superfície bem diferente de um leitor read-only, então o
+`terminalEnabled` sai `false` e o endpoint recusa o upgrade até ser ligado
+— o socket não está apenas escondido na UI, ele não existe.
+
+**Nada é chumbado em bash.** O dono do vault usa WSL, mas quem clonar este
+repositório pode estar em PowerShell, cmd, zsh ou fish, então o
+`server/src/app/shells.ts` detecta o que existe de verdade *nesta* máquina
+e o `GET /api/terminal/shells` reporta tanto essa lista quanto o que os
+ajustes atuais resolvem. Três ajustes governam uma sessão: o shell (em
+branco = o padrão da máquina), o diretório inicial (em branco = **a raiz do
+vault ativo**, pro terminal sempre abrir no Mind e não onde o server foi
+iniciado) e o comando digitado ao abrir (padrão `claude`, em branco = shell
+puro). É essa a diferença entre um app que funciona pro autor e um que
+funciona pra quem clonar.
+
+**Tempo de vida da sessão.** Um PTY por socket; ele morre com o socket. O
+painel sobrevive a trocas de *tela* porque a SPA nunca recarrega enquanto
+você navega, mas um reload do navegador começa um shell novo. Reatar a uma
+sessão sobrevivente (buffer de scrollback mais um período de carência após
+a desconexão) foi considerado e deixado de fora desta rodada de propósito —
+adiciona ciclo de vida de processo órfão a uma feature cuja primeira versão
+é melhor pequena.
+
+**Controle de custo no cliente.** O `@xterm/xterm` tem ~250 KB e o terminal
+sai desligado, então o `TerminalPanel` é `React.lazy()`-ado pro próprio
+chunk: uma sessão que nunca abre o painel nunca baixa isso.

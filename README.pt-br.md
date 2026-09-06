@@ -37,6 +37,7 @@ narrativa completa se precisar do "porquê" de uma decisão não coberta aqui.
 | File watching | `chokidar` |
 | Web | Vite + React 19 |
 | Grafo | `d3-force` (só o layout — render SVG + interação são escritos à mão) |
+| Terminal | `node-pty` (um PTY de verdade, a mesma biblioteca do terminal do VS Code) + `ws` (o canal bidirecional que o SSE não dá) + `@xterm/xterm` no navegador, code-split pra que uma sessão que nunca abre o painel nunca baixe isso |
 | Fontes | Space Grotesk (display), Inter (corpo), JetBrains Mono (terminal/código/metadados) — self-hosted via `@fontsource/*` |
 | Testes | Vitest, uma suíte por workspace |
 
@@ -154,20 +155,25 @@ mindview/
 ├── server/            # @mindview/server — composition root HTTP + toda a IO
 │   ├── src/
 │   │   ├── index.ts        # o server: rotas, checagens de segurança, serve estático/SPA
-│   │   ├── app/             # houseA.ts, stateB.ts, vaultService.ts, paths.ts
+│   │   ├── app/             # houseA.ts, stateB.ts, vaultService.ts, paths.ts,
+│   │   │                    # shells.ts + terminalService.ts (PTY, ver §12 do ARQUITETURA)
 │   │   ├── io/              # walk.ts, readAll.ts, watcher.ts, confine.ts, security.ts,
 │   │   │                    # atomicWrite.ts, externalOpen.ts — todo toque em fs/rede vive aqui
-│   │   └── http/            # router.ts, respond.ts — helpers HTTP minúsculos, feitos à mão
-│   └── test/           # server.test.ts — testes HTTP contra um vault-fixture descartável
+│   │   └── http/            # router.ts, respond.ts — helpers HTTP minúsculos, feitos à mão,
+│   │                        # terminalSocket.ts — o portão do upgrade WebSocket + a ponte do PTY
+│   └── test/           # server.test.ts (HTTP, vault-fixture descartável),
+│                       # terminalUnits.test.ts + terminalSocket.test.ts (PTY real sobre socket real)
 └── web/               # @mindview/web — UI Vite + React 19
     └── src/
         ├── screens/     # Reader, Shelf, Console, GraphScreen, SettingsScreen
-        ├── components/  # Sidebar, Tree, QuickSwitcher, TerminalChrome, MarkdownBody, …
+        ├── components/  # Sidebar, Tree, QuickSwitcher, TerminalChrome, MarkdownBody,
+        │                # TerminalPanel (lazy — xterm.js tem ~250 KB), …
         ├── context/     # TreeContext, SettingsContext, ReindexContext, AppStateEvents
         ├── api/         # client.ts, types.ts — wrapper fino de fetch + shapes de resposta
         ├── lib/         # hashRoute.ts, contrast.ts (WCAG), remarkTaskStates.ts, useThemeColors.ts,
         │                # graphSim.ts (sim d3-force viva), graphModel.ts, tagPalette.ts, graphPrefs.ts,
-        │                # tocCollapsed.ts / treeOpenState.ts (estado de UI por navegador)
+        │                # tocCollapsed.ts / treeOpenState.ts / terminalPanelState.ts
+        │                # (estado de UI por navegador)
         └── styles/      # tokens.css (identidade, ver docs/DESIGN.md), global.css
 ```
 
@@ -211,7 +217,17 @@ Quatro abas na sidebar (nenhuma é "a tela principal") mais o Leitor, que não
    verdade, toggle de frontmatter bonito, toggle de TOC, toggle de
    recentes/fixados, e o trocador de caminho do vault. "Restaurar padrão"
    reseta uma seção inteira (Aparência, Tipografia) de uma vez.
-5. **Leitor (Reader)** — não é aba da sidebar. Abre ao clicar num nó na
+5. **Terminal** — também não é aba da sidebar: uma doca no rodapé da janela,
+   no formato do VS Code, aberta e fechada com `Ctrl+`` `, redimensionável
+   arrastando a borda de cima, e persistida por navegador. **Desligado por
+   padrão** — precisa ser habilitado nos Ajustes, porque um app web local
+   capaz de abrir um shell é uma superfície bem diferente de um leitor
+   read-only. O shell, o diretório inicial e o comando digitado ao abrir são
+   todos configuráveis: os padrões resolvem pro shell da própria máquina, a
+   *raiz do vault ativo* e `claude` (o Claude Code). Nada é chumbado em bash
+   — o dropdown oferece o que existe de verdade ali, que é o que faz o app
+   funcionar sem mudança nenhuma pra quem está no PowerShell.
+6. **Leitor (Reader)** — não é aba da sidebar. Abre ao clicar num nó na
    árvore de arquivos, na busca global (`Ctrl+K`), no quick-switcher
    (`Ctrl+O`), ou num item recente/fixado. Markdown renderizado, painel de
    backlinks, botão "abrir no Obsidian / VS Code", toggle de fixar. A
@@ -247,6 +263,8 @@ Isto é uma lista de referência, não uma spec OpenAPI completa — ver
 | GET | `/api/backup/export` | baixa `mindview-backup.json` — settings, cadernos, nós fixados/recentes |
 | POST | `/api/backup/import` | substitui settings, cadernos e nós fixados/recentes a partir de um arquivo de backup enviado |
 | GET | `/api/events` | stream Server-Sent Events, um evento `reindex` por reindexação concluída |
+| GET | `/api/terminal/shells` | shells que existem de verdade nesta máquina + o que os ajustes atuais resolvem (shell, args, cwd, comando ao abrir) |
+| WS | `/api/terminal/pty` | o WebSocket do terminal embutido. Recusado a menos que o token confira, o `Host` nomeie loopback, o `Origin` (quando enviado) seja loopback **e** o terminal esteja habilitado nos ajustes. Server→cliente: frames binários são saída crua, frames de texto são controle JSON (`ready` / `exit` / `error`). Cliente→server: só JSON em texto (`input` / `resize`) |
 
 ## Documentação
 

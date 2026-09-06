@@ -143,6 +143,27 @@ modo leitura: `~/mind/console`, `~/mind/estante`, `~/mind/ajustes`, etc.,
 sempre em `--font-mono`, sempre essas três cores exatas, independente de
 tema ou customização do usuário.
 
+### O terminal de verdade, embaixo do falso
+
+A Fase 2 adicionou um painel de terminal real
+(`web/src/components/TerminalPanel.tsx`), o que levantou um risco óbvio: um
+shell de verdade embaixo de um chrome de terminal decorativo poderia ler
+como metáfora duplicada. Não lê, porque os dois ocupam papéis diferentes —
+o chrome é uma *moldura* (topo da tela, três pontos, um caminho), o painel
+é uma *doca* (rodapé da janela, redimensionável, fechável). Eles nunca se
+tocam.
+
+O painel mantém `--code-bg` como fundo nos **dois** temas em vez de seguir
+o `--surface`, pelo mesmo motivo que os tokens `--on-code-*` existem (ver
+Paleta): um terminal numa página branca lê errado, e esses tokens foram
+introduzidos exatamente pra conteúdo que sempre fica sobre superfície
+escura. Todo o resto segue as escolhas do próprio usuário — o cursor e o
+`green` ANSI são `--accent`, e o restante do conjunto ANSI vem da paleta de
+tags em vez dos padrões do xterm, que brigam com esta identidade. O único
+ponto em que o terminal se afasta da tipografia de leitura é que ele é
+sempre JetBrains Mono no próprio tamanho: alinhamento de coluna não é
+preferência, é requisito de correção pra uma TUI.
+
 ## Capas de caderno
 
 Capas de caderno do MVP são **flat, sem textura** — uma reação deliberada

@@ -136,6 +136,26 @@ signature rather than a reading-mode detail: `~/mind/console`,
 `~/mind/estante`, `~/mind/ajustes`, etc., always in `--font-mono`, always
 these exact three colors, regardless of theme or user customization.
 
+### The real terminal, under the fake one
+
+Fase 2 added an actual terminal panel (`web/src/components/TerminalPanel.tsx`),
+which raised an obvious risk: a genuine shell sitting under a decorative
+terminal chrome could read as a duplicated metaphor. It doesn't, because
+the two occupy different roles — the chrome is a *frame* (top of the
+screen, three dots, a path), the panel is a *dock* (bottom of the window,
+resizable, closable). They never touch.
+
+The panel keeps `--code-bg` as its ground in **both** themes rather than
+following `--surface`, for the same reason the `--on-code-*` tokens exist
+(see Palette): a terminal on a white page reads wrong, and those tokens
+were introduced precisely for content that always sits on a dark surface.
+Everything else follows the user's own choices — the cursor and the ANSI
+`green` are `--accent`, and the rest of the ANSI set is drawn from the tag
+palette instead of xterm's defaults, which clash with this identity. The
+one place the terminal deviates from the reading typography is that it is
+always JetBrains Mono at its own size: column alignment is not a
+preference, it is a correctness requirement for a TUI.
+
 ## Notebook covers
 
 MVP notebook covers are **flat, no texture** — a deliberate reaction to the

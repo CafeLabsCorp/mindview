@@ -36,6 +36,7 @@ narrative if you need the "why" behind a decision not covered here.
 | File watching | `chokidar` |
 | Web | Vite + React 19 |
 | Graph | `d3-force` (layout only — SVG render + interaction are hand-written) |
+| Terminal | `node-pty` (a real PTY, same library VS Code's terminal uses) + `ws` (the bidirectional channel SSE can't provide) + `@xterm/xterm` in the browser, code-split so a session that never opens the panel never downloads it |
 | Fonts | Space Grotesk (display), Inter (body), JetBrains Mono (terminal/code/metadata) — self-hosted via `@fontsource/*` |
 | Tests | Vitest, one suite per workspace |
 
@@ -152,20 +153,25 @@ mindview/
 ├── server/            # @mindview/server — HTTP composition root + all IO
 │   ├── src/
 │   │   ├── index.ts        # the server: routes, security checks, static/SPA serving
-│   │   ├── app/             # houseA.ts, stateB.ts, vaultService.ts, paths.ts
+│   │   ├── app/             # houseA.ts, stateB.ts, vaultService.ts, paths.ts,
+│   │   │                    # shells.ts + terminalService.ts (PTY, see §12 of ARQUITETURA)
 │   │   ├── io/              # walk.ts, readAll.ts, watcher.ts, confine.ts, security.ts,
 │   │   │                    # atomicWrite.ts, externalOpen.ts — every fs/network touch lives here
-│   │   └── http/            # router.ts, respond.ts — tiny hand-rolled HTTP helpers
-│   └── test/           # server.test.ts — HTTP tests against a disposable vault fixture
+│   │   └── http/            # router.ts, respond.ts — tiny hand-rolled HTTP helpers,
+│   │                        # terminalSocket.ts — the WebSocket upgrade gate + PTY bridge
+│   └── test/           # server.test.ts (HTTP, disposable vault fixture),
+│                       # terminalUnits.test.ts + terminalSocket.test.ts (real PTY over a real socket)
 └── web/               # @mindview/web — Vite + React 19 UI
     └── src/
         ├── screens/     # Reader, Shelf, Console, GraphScreen, SettingsScreen
-        ├── components/  # Sidebar, Tree, QuickSwitcher, TerminalChrome, MarkdownBody, …
+        ├── components/  # Sidebar, Tree, QuickSwitcher, TerminalChrome, MarkdownBody,
+        │                # TerminalPanel (lazy-loaded — xterm.js is ~250 KB), …
         ├── context/     # TreeContext, SettingsContext, ReindexContext, AppStateEvents
         ├── api/         # client.ts, types.ts — thin fetch wrapper + shared response shapes
         ├── lib/         # hashRoute.ts, contrast.ts (WCAG), remarkTaskStates.ts, useThemeColors.ts,
         │                # graphSim.ts (live d3-force sim), graphModel.ts, tagPalette.ts, graphPrefs.ts,
-        │                # tocCollapsed.ts / treeOpenState.ts (per-browser UI state)
+        │                # tocCollapsed.ts / treeOpenState.ts / terminalPanelState.ts
+        │                # (per-browser UI state)
         └── styles/      # tokens.css (identity, see docs/DESIGN.md), global.css
 ```
 
@@ -205,7 +211,17 @@ isn't a tab — see "Post-launch polish" below for why:
    map with a real WCAG contrast guard, frontmatter pretty-printing toggle,
    TOC toggle, recents/pinned toggle, and the vault-path switcher. "Restaurar
    padrão" resets a whole section (Aparência, Tipografia) to defaults at once.
-5. **Reader** — not a sidebar tab. Opens from clicking a node in the file
+5. **Terminal** — not a sidebar tab either: a VS Code-shaped dock at the
+   bottom of the window, toggled with `Ctrl+`` `, resizable by dragging its
+   top edge, and persisted per browser. **Off by default** — it has to be
+   enabled in Ajustes, because a local web app that can open a shell is a
+   very different surface from a read-only reader. The shell, its working
+   directory and the command typed on open are all configurable: the
+   defaults resolve to this machine's own shell, the *active vault root*,
+   and `claude` (Claude Code). Nothing is hardcoded to bash — the dropdown
+   offers whatever really exists here, which is what makes the app work
+   unchanged for someone on PowerShell.
+6. **Reader** — not a sidebar tab. Opens from clicking a node in the file
    tree, global search (`Ctrl+K`), quick-switcher (`Ctrl+O`), or a
    recent/pinned item. Rendered Markdown, backlinks panel, "open in
    Obsidian / VS Code" button, pin toggle. The foundation the other screens
@@ -240,6 +256,8 @@ exact request/response shapes.
 | GET | `/api/backup/export` | downloads `mindview-backup.json` — settings, notebooks, pinned/recent nodes |
 | POST | `/api/backup/import` | replaces settings, notebooks and pinned/recent nodes from an uploaded backup file |
 | GET | `/api/events` | Server-Sent Events stream, one `reindex` event per completed reindex |
+| GET | `/api/terminal/shells` | shells that really exist on this machine + what the current settings resolve to (shell, args, cwd, startup command) |
+| WS | `/api/terminal/pty` | the embedded terminal's WebSocket. Refused unless the token matches, the `Host` names loopback, the `Origin` (when sent) is loopback, **and** the terminal is enabled in settings. Server→client: binary frames are raw output, text frames are JSON control (`ready` / `exit` / `error`). Client→server: JSON text only (`input` / `resize`) |
 
 ## Docs
 

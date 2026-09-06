@@ -212,8 +212,11 @@ isn't a tab — see "Post-launch polish" below for why:
    TOC toggle, recents/pinned toggle, and the vault-path switcher. "Restaurar
    padrão" resets a whole section (Aparência, Tipografia) to defaults at once.
 5. **Terminal** — not a sidebar tab either: a VS Code-shaped dock at the
-   bottom of the window, toggled with `Ctrl+`` `, resizable by dragging its
-   top edge, and persisted per browser. **Off by default** — it has to be
+   bottom of the window, opened from the always-visible bar beneath it or
+   with `Ctrl+`` `, resizable by dragging its top edge, and persisted per
+   browser. Multiple sessions live in tabs (`+` for a new one, `✕` to end
+   one); `—` minimises the dock **without** killing anything, which is the
+   whole difference between minimising and ending a session. **Off by default** — it has to be
    enabled in Ajustes, because a local web app that can open a shell is a
    very different surface from a read-only reader. The shell, its working
    directory and the command typed on open are all configurable: the

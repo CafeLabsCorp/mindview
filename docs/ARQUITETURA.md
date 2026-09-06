@@ -586,6 +586,26 @@ server was started) and the command typed on open (default `claude`, blank
 = a plain shell). This is the difference between an app that works for its
 author and one that works for anyone who clones it.
 
+**Discoverability, and why the bar exists.** The first version shipped as a
+silent opt-in: disabled by default, with no affordance anywhere and a
+keyboard shortcut that deliberately does nothing while the feature is off.
+That is undiscoverable — the only way to learn the terminal existed was to
+read the settings screen end to end. So there is now a permanent bar along
+the bottom of the window. When the terminal is switched off it says so and
+links to the switch; showing that link grants no capability, since the
+socket still refuses every connection. The lesson generalises: *off by
+default* and *invisible* are different decisions, and only the first one
+was intended.
+
+**Minimising is not ending.** A session's shell dies when its `TerminalView`
+unmounts — the cleanup closes the socket and the server kills the PTY on
+`close`. That single fact defines the whole panel: minimising keeps every
+tab mounted and merely hides them, while `✕` on a tab unmounts it and is
+therefore the only thing that ends a shell. Sessions are tabs, each with
+its own xterm and its own socket, capped server-side at 8. A hidden panel
+with no tabs opens none: starting `claude` behind something nobody can see
+would be both wasteful and surprising.
+
 **Session lifetime.** One PTY per socket; it dies with the socket. The
 panel survives *screen* changes because the SPA never reloads while you
 navigate, but a browser reload starts a fresh shell. Re-attaching to a

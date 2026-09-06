@@ -618,6 +618,26 @@ iniciado) e o comando digitado ao abrir (padrão `claude`, em branco = shell
 puro). É essa a diferença entre um app que funciona pro autor e um que
 funciona pra quem clonar.
 
+**Descoberta, e por que a barra existe.** A primeira versão saiu como um
+opt-in mudo: desligada por padrão, sem nenhuma affordance em lugar nenhum e
+com um atalho de teclado que deliberadamente não faz nada enquanto a
+feature está desligada. Isso é indescobrível — o único jeito de saber que o
+terminal existia era ler a tela de ajustes de ponta a ponta. Então agora
+existe uma barra permanente no rodapé da janela. Quando o terminal está
+desligado, ela diz isso e leva pro interruptor; mostrar esse link não
+concede capacidade nenhuma, já que o socket continua recusando toda
+conexão. A lição generaliza: *desligado por padrão* e *invisível* são
+decisões diferentes, e só a primeira era a intenção.
+
+**Minimizar não é encerrar.** O shell de uma sessão morre quando o
+`TerminalView` dela desmonta — o cleanup fecha o socket e o server mata o
+PTY no `close`. Esse fato sozinho define o painel inteiro: minimizar mantém
+toda aba montada e só as esconde, enquanto o `✕` de uma aba desmonta e é,
+portanto, a única coisa que encerra um shell. Sessões são abas, cada uma
+com seu próprio xterm e seu próprio socket, limitadas a 8 no server. Um
+painel escondido e sem abas não abre nenhuma: subir o `claude` atrás de
+algo que ninguém vê seria desperdício e surpresa.
+
 **Tempo de vida da sessão.** Um PTY por socket; ele morre com o socket. O
 painel sobrevive a trocas de *tela* porque a SPA nunca recarrega enquanto
 você navega, mas um reload do navegador começa um shell novo. Reatar a uma

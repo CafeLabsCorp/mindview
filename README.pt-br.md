@@ -218,8 +218,11 @@ Quatro abas na sidebar (nenhuma é "a tela principal") mais o Leitor, que não
    recentes/fixados, e o trocador de caminho do vault. "Restaurar padrão"
    reseta uma seção inteira (Aparência, Tipografia) de uma vez.
 5. **Terminal** — também não é aba da sidebar: uma doca no rodapé da janela,
-   no formato do VS Code, aberta e fechada com `Ctrl+`` `, redimensionável
-   arrastando a borda de cima, e persistida por navegador. **Desligado por
+   no formato do VS Code, aberta pela barra sempre visível logo abaixo dela
+   ou com `Ctrl+`` `, redimensionável arrastando a borda de cima, e
+   persistida por navegador. Várias sessões vivem em abas (`+` abre uma
+   nova, `✕` encerra); `—` minimiza a doca **sem** matar nada, que é toda a
+   diferença entre minimizar e encerrar. **Desligado por
    padrão** — precisa ser habilitado nos Ajustes, porque um app web local
    capaz de abrir um shell é uma superfície bem diferente de um leitor
    read-only. O shell, o diretório inicial e o comando digitado ao abrir são

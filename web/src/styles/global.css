@@ -1549,3 +1549,96 @@ input[type='color']::-moz-color-swatch {
   font-size: 13px;
   font-family: var(--font-mono);
 }
+
+/* ------------------------------------------------- terminal panel (Fase 2)
+
+   Bottom dock, VSCode-shaped: it is a sibling of .screen-area inside
+   .main-col, so the screen above simply gets less room instead of the
+   panel floating over the content. Height is dragged and persisted per
+   browser (lib/terminalPanelState.ts), never in settings.yaml — same call
+   as navOpen / treeOpen.
+
+   The body keeps --code-bg (fixed dark in both themes) rather than
+   --surface: a terminal on a white ground reads wrong, and the --on-code-*
+   tokens exist precisely for this surface. */
+
+.terminal-panel {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--code-bg);
+  border-top: 1px solid var(--border);
+}
+
+.terminal-resize-handle {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 7px;
+  cursor: ns-resize;
+  z-index: 2;
+  background: transparent;
+}
+
+.terminal-resize-handle:hover,
+.terminal-resize-handle:focus-visible {
+  background: var(--accent);
+  opacity: 0.5;
+  outline: none;
+}
+
+.terminal-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.terminal-panel-title {
+  color: var(--on-code-accent);
+  letter-spacing: 0.04em;
+}
+
+.terminal-panel-status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--on-code-subtle);
+}
+
+.terminal-panel-status.is-error {
+  color: var(--danger);
+}
+
+.terminal-panel-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* The head sits on --code-bg, which the ghost button's normal --fg does
+   not read against in the light theme. */
+.terminal-panel-head .btn-ghost {
+  color: var(--on-code);
+}
+
+.terminal-panel-body {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 6px 0 10px;
+  overflow: hidden;
+}
+
+.terminal-panel-body .xterm {
+  height: 100%;
+}

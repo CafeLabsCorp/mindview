@@ -56,7 +56,28 @@ function injectTokenPlugin() {
 export default defineConfig({
   plugins: [react(), injectTokenPlugin()],
   server: {
+    // Vite's default `cors` allows *any* loopback origin, and the HTML this
+    // dev server hands out carries the run token (injectTokenPlugin above).
+    // Together that let a page served from any other port on this machine
+    // fetch this one, read the token, and — since the terminal landed —
+    // open a shell with it. The SPA only ever fetches same-origin (5173 ->
+    // 5173, proxied below) and HMR is same-origin too, so switching CORS
+    // off costs nothing and removes the exfiltration step.
+    cors: false,
+    host: '127.0.0.1',
+    // The server's Origin allowlist names this exact port; silently
+    // sliding to 5174 would break the terminal's handshake.
+    strictPort: true,
     proxy: {
+      // The embedded terminal is the one WebSocket in the app, so it gets
+      // its own entry (listed first — Vite matches keys in order) with
+      // ws:true, leaving the /api rule below free to keep ws:false for
+      // everything else, including the plain GET /api/terminal/shells.
+      '/api/terminal/pty': {
+        target: `ws://127.0.0.1:${SERVER_PORT}`,
+        changeOrigin: true,
+        ws: true,
+      },
       // Same-process Node->Node hop, not a browser CORS grant — the
       // server itself never sends Access-Control-Allow-* headers (see
       // server/src/http/respond.ts). This is what lets `npm run dev` run

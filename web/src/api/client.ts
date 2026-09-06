@@ -56,6 +56,19 @@ export function openEventStream(): EventSource {
   return new EventSource(withToken('/api/events'));
 }
 
+/** The embedded terminal's socket. Same token rule as every other /api/*
+ * call — the WebSocket API can't send custom headers either, so it travels
+ * as a query param. Initial cols/rows go in the URL so the PTY is born at
+ * the right size instead of being resized a frame later. */
+export function terminalSocketUrl(cols: number, rows: number): string {
+  const url = new URL('/api/terminal/pty', window.location.origin);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  url.searchParams.set('token', TOKEN);
+  url.searchParams.set('cols', String(cols));
+  url.searchParams.set('rows', String(rows));
+  return url.toString();
+}
+
 export function hasToken(): boolean {
   return TOKEN.length > 0;
 }

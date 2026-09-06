@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { QuickSwitcher } from './components/QuickSwitcher';
 import { Reader } from './screens/Reader';
@@ -8,10 +8,42 @@ import { GraphScreen } from './screens/GraphScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { useHashRoute } from './lib/hashRoute';
 import { TreeProvider } from './context/TreeContext';
+import { useSettings } from './context/SettingsContext';
+import { loadTerminalPanelState, saveTerminalPanelState } from './lib/terminalPanelState';
+
+// xterm.js is ~250 KB and the terminal ships disabled, so it is code-split
+// out of the main bundle: a session that never opens the panel never
+// downloads it.
+const TerminalPanel = lazy(() => import('./components/TerminalPanel'));
 
 export default function App() {
   const route = useHashRoute();
+  const { settings } = useSettings();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [terminal, setTerminal] = useState(loadTerminalPanelState);
+
+  const terminalEnabled = settings.terminalEnabled;
+  const setTerminalOpen = useCallback((open: boolean) => {
+    setTerminal((prev) => {
+      const next = { ...prev, open };
+      saveTerminalPanelState(next);
+      return next;
+    });
+  }, []);
+  const toggleTerminal = useCallback(() => {
+    setTerminal((prev) => {
+      const next = { ...prev, open: !prev.open };
+      saveTerminalPanelState(next);
+      return next;
+    });
+  }, []);
+  const setTerminalHeight = useCallback((height: number) => {
+    setTerminal((prev) => {
+      const next = { ...prev, height };
+      saveTerminalPanelState(next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -21,13 +53,20 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'o')) {
         e.preventDefault();
         setSearchOpen(true);
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === '`' || e.code === 'Backquote')) {
+        // Ctrl+` — the same shortcut VSCode uses for its terminal panel.
+        // Ignored entirely when the terminal is off in Ajustes, so the key
+        // keeps whatever meaning the browser gives it.
+        if (!terminalEnabled) return;
+        e.preventDefault();
+        toggleTerminal();
       } else if (e.key === 'Escape') {
         setSearchOpen(false);
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [terminalEnabled, toggleTerminal]);
 
   return (
     <TreeProvider>
@@ -41,6 +80,11 @@ export default function App() {
             {route.screen === 'grafo' && <GraphScreen />}
             {route.screen === 'ajustes' && <SettingsScreen />}
           </div>
+          {terminalEnabled && terminal.open && (
+            <Suspense fallback={null}>
+              <TerminalPanel height={terminal.height} onHeightChange={setTerminalHeight} onClose={() => setTerminalOpen(false)} />
+            </Suspense>
+          )}
         </div>
       </div>
       <QuickSwitcher open={searchOpen} onClose={() => setSearchOpen(false)} />

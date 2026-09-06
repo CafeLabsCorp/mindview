@@ -51,6 +51,28 @@ export interface Settings {
   frontmatterPretty: boolean;
   tocEnabled: boolean;
   recentPinnedEnabled: boolean;
+  terminalEnabled: boolean;
+  terminalShell: string;
+  terminalShellArgs: string[];
+  terminalCwd: string;
+  terminalStartupCommand: string;
+  terminalMode: 'command' | 'shell';
+  terminalFontSize: number;
+}
+
+export interface ShellOption {
+  label: string;
+  command: string;
+  args: string[];
+}
+
+/** What the server can really launch on *this* machine, plus what the
+ * current settings resolve to — the Ajustes screen shows both so an empty
+ * "shell" field still tells you what it will actually run. */
+export interface TerminalShellsResponse {
+  platform: string;
+  shells: ShellOption[];
+  effective: { shell: string; args: string[]; cwd: string; startupCommand: string; mode: 'command' | 'shell' };
 }
 
 export interface NotebookNodeRef {

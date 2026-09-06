@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Settings, VaultGraph } from '../api/types';
 import { DEFAULT_GRAPH_PREFS } from '../lib/graphPrefs';
+import { FALLBACK_SETTINGS } from '../context/SettingsContext';
 
 // --- fixtures --------------------------------------------------------------
 const GRAPH: VaultGraph = {
@@ -17,19 +18,10 @@ const GRAPH: VaultGraph = {
     { from: 'a.md', to: 'c.md' },
   ],
 };
-const SETTINGS: Settings = {
-  accent: '#3fb950',
-  theme: 'dark',
-  linkColorOverride: null,
-  bodyFont: "'Inter',sans-serif",
-  readSize: 15.5,
-  colWidth: 680,
-  lineHeight: 1.75,
-  tagColors: {},
-  frontmatterPretty: true,
-  tocEnabled: true,
-  recentPinnedEnabled: true,
-};
+// Spread the real defaults rather than re-listing every field: this
+// fixture used to be a hand-copied literal and broke the moment Settings
+// grew the terminal knobs.
+const SETTINGS: Settings = { ...FALLBACK_SETTINGS, accent: '#3fb950', bodyFont: "'Inter',sans-serif" };
 
 function jsonResponse(body: unknown) {
   return {

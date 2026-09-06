@@ -14,6 +14,13 @@ export const FALLBACK_SETTINGS: Settings = {
   frontmatterPretty: true,
   tocEnabled: true,
   recentPinnedEnabled: true,
+  terminalEnabled: false,
+  terminalShell: '',
+  terminalShellArgs: [],
+  terminalCwd: '',
+  terminalStartupCommand: 'claude',
+  terminalMode: 'command',
+  terminalFontSize: 13,
 };
 
 interface SettingsContextValue {

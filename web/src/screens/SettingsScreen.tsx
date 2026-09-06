@@ -4,7 +4,7 @@ import { useSettings, FALLBACK_SETTINGS } from '../context/SettingsContext';
 import { useApi } from '../hooks/useApi';
 import { useBumpAppState } from '../context/AppStateEvents';
 import { api, ApiError } from '../api/client';
-import type { ConfigResponse } from '../api/types';
+import type { ConfigResponse, TerminalShellsResponse } from '../api/types';
 import { checkTagColorContrast } from '../lib/contrast';
 import { useThemeColors } from '../lib/useThemeColors';
 
@@ -173,6 +173,7 @@ export function SettingsScreen() {
           />
         </section>
 
+        <TerminalSection />
         <BackupSection />
         <VaultPathSection />
       </div>
@@ -185,6 +186,168 @@ export function SettingsScreen() {
  * this is the only durability story for cadernos/tema/tags/fixados: same
  * shape as the Dindin app's backup ("Exportar backup" / "Importar backup",
  * um `.json`, import é replace-all com confirmação). */
+/** The shell is deliberately not hardcoded: the vault owner runs WSL, but
+ * anyone cloning this repo may be on PowerShell, cmd, zsh or fish. The
+ * dropdown lists only what really exists on this machine (server-side
+ * detection, app/shells.ts) and the free-text field covers the rest. */
+function TerminalSection() {
+  const { settings, update } = useSettings();
+  const { data: shells } = useApi<TerminalShellsResponse>('/terminal/shells');
+  const [shellDraft, setShellDraft] = useState<string | null>(null);
+  const [cwdDraft, setCwdDraft] = useState<string | null>(null);
+  const [startupDraft, setStartupDraft] = useState<string | null>(null);
+
+  const shellValue = shellDraft ?? settings.terminalShell;
+  const cwdValue = cwdDraft ?? settings.terminalCwd;
+  const startupValue = startupDraft ?? settings.terminalStartupCommand;
+
+  const pickPreset = (command: string) => {
+    const preset = shells?.shells.find((s) => s.command === command);
+    setShellDraft(null);
+    update({ terminalShell: command, terminalShellArgs: preset?.args ?? [] });
+  };
+
+  return (
+    <section className="settings-group">
+      <div className="settings-group-head">
+        <h3>Terminal</h3>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => {
+            setShellDraft(null);
+            setCwdDraft(null);
+            setStartupDraft(null);
+            update({
+              terminalShell: FALLBACK_SETTINGS.terminalShell,
+              terminalShellArgs: FALLBACK_SETTINGS.terminalShellArgs,
+              terminalCwd: FALLBACK_SETTINGS.terminalCwd,
+              terminalStartupCommand: FALLBACK_SETTINGS.terminalStartupCommand,
+              terminalMode: FALLBACK_SETTINGS.terminalMode,
+              terminalFontSize: FALLBACK_SETTINGS.terminalFontSize,
+            });
+          }}
+        >
+          restaurar padrão
+        </button>
+      </div>
+      <ToggleRow
+        label="Habilitar o terminal embutido"
+        hint="desligado por padrão: com ele ligado o app passa a poder abrir um shell nesta máquina. Ctrl+` abre e fecha o painel."
+        checked={settings.terminalEnabled}
+        onChange={(v) => update({ terminalEnabled: v })}
+      />
+      {settings.terminalEnabled && (
+        <>
+          <div className="settings-row">
+            <div>
+              <label>Shell</label>
+              <span className="hint">
+                {shells ? `detectados em ${shells.platform}; deixe em branco pro padrão da máquina` : 'detectando…'}
+              </span>
+            </div>
+            <select className="text-input" value={shells?.shells.some((s) => s.command === settings.terminalShell) ? settings.terminalShell : ''} onChange={(e) => pickPreset(e.target.value)}>
+              <option value="">padrão da máquina{shells ? ` (${shells.effective.shell})` : ''}</option>
+              {shells?.shells.map((s) => (
+                <option key={s.command} value={s.command}>
+                  {s.label} — {s.command}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="settings-row">
+            <div>
+              <label>…ou o caminho do executável</label>
+              <span className="hint">pra um shell que não está na lista acima</span>
+            </div>
+            <input
+              className="text-input"
+              style={{ flex: 1 }}
+              placeholder={shells?.effective.shell ?? '/bin/bash'}
+              value={shellValue}
+              onChange={(e) => setShellDraft(e.target.value)}
+              onBlur={() => {
+                if (shellDraft !== null) update({ terminalShell: shellDraft.trim() });
+                setShellDraft(null);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            />
+          </div>
+          <div className="settings-row">
+            <div>
+              <label>Diretório inicial</label>
+              <span className="hint">em branco = a pasta do vault ativo{shells ? ` (${shells.effective.cwd})` : ''}</span>
+            </div>
+            <input
+              className="text-input"
+              style={{ flex: 1 }}
+              placeholder={shells?.effective.cwd ?? ''}
+              value={cwdValue}
+              onChange={(e) => setCwdDraft(e.target.value)}
+              onBlur={() => {
+                if (cwdDraft !== null) update({ terminalCwd: cwdDraft.trim() });
+                setCwdDraft(null);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            />
+          </div>
+          <div className="settings-row">
+            <div>
+              <label>Modo</label>
+              <span className="hint">
+                {settings.terminalMode === 'command'
+                  ? 'roda só o comando abaixo; sair dele encerra a sessão, sem prompt por baixo'
+                  : 'terminal completo: sair do comando devolve o prompt do shell'}
+              </span>
+            </div>
+            <select
+              className="text-input"
+              value={settings.terminalMode}
+              onChange={(e) => update({ terminalMode: e.target.value as 'command' | 'shell' })}
+            >
+              <option value="command">Só o comando (padrão)</option>
+              <option value="shell">Terminal completo</option>
+            </select>
+          </div>
+          <div className="settings-row">
+            <div>
+              <label>Comando ao abrir</label>
+              <span className="hint">
+                {settings.terminalMode === 'command'
+                  ? 'o shell é substituído por ele — em branco = shell puro'
+                  : 'digitado no shell assim que ele sobe — em branco = shell puro'}
+              </span>
+            </div>
+            <input
+              className="text-input"
+              style={{ flex: 1 }}
+              placeholder="claude"
+              value={startupValue}
+              onChange={(e) => setStartupDraft(e.target.value)}
+              onBlur={() => {
+                if (startupDraft !== null) update({ terminalStartupCommand: startupDraft.trim() });
+                setStartupDraft(null);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            />
+          </div>
+          <div className="settings-row">
+            <label>Tamanho da fonte</label>
+            <input
+              type="range"
+              min={10}
+              max={20}
+              step={0.5}
+              value={settings.terminalFontSize}
+              onChange={(e) => update({ terminalFontSize: Number(e.target.value) })}
+            />
+            <span className="mono">{settings.terminalFontSize}px</span>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 function BackupSection() {
   const { reload: reloadSettings } = useSettings();
   const bumpAppState = useBumpAppState();

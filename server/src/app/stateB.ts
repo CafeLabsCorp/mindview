@@ -3,13 +3,13 @@
 // opened / pinned nodes, usage log. Never versioned, never read by the
 // maintenance agent, never inside the vault. See server/src/app/paths.ts
 // and the task brief's "Onde vive o estado do MV".
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { atomicWriteFile, readIfExists } from '../io/atomicWrite.js';
+import { atomicWriteFile, ensureOwnerOnlyDir, readIfExists } from '../io/atomicWrite.js';
 import { HOUSE_B_ROOT } from './paths.js';
 
 function ensureHouseB(): void {
-  mkdirSync(HOUSE_B_ROOT, { recursive: true });
+  ensureOwnerOnlyDir(HOUSE_B_ROOT);
 }
 
 // ------------------------------------------------------------- session.json

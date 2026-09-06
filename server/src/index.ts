@@ -49,9 +49,12 @@ import { logUsage, noteRecentNode, noteRecentVaultPath, readState, togglePinnedN
 import { VaultService } from './app/vaultService.js';
 import { confine, OutsideRootError } from './io/confine.js';
 import { obsidianUri, vscodeUri } from './io/externalOpen.js';
-import { generateToken, isHostAllowed, rejectUnauthorized, tokenFromRequest } from './io/security.js';
+import { generateToken, isHostAllowed, rejectUnauthorized, tokenFromRequest, tokenMatches } from './io/security.js';
 import { HttpError, readJsonBody, sendJson } from './http/respond.js';
 import { Router } from './http/router.js';
+import { attachTerminalBridge, killAllTerminalSessions } from './http/terminalSocket.js';
+import { detectShells } from './app/shells.js';
+import { resolveCwd, resolveLaunch } from './app/terminalService.js';
 
 const PORT = Number(process.env.MINDVIEW_PORT ?? 4317);
 const TOKEN = generateToken();
@@ -139,7 +142,10 @@ router.put('api/settings', async ({ req, res }) => {
   const current = readSettings();
   const merged: Settings = { ...current, ...patch, tagColors: { ...current.tagColors, ...(patch.tagColors ?? {}) } };
   writeSettings(merged);
-  sendJson(res, 200, merged);
+  // Read back rather than echoing the merge: readSettings() coerces the
+  // terminal fields to their declared types (see sanitizeTerminal), so the
+  // client is told what actually took effect, not what it asked for.
+  sendJson(res, 200, readSettings());
 });
 
 router.get('api/config', ({ res }) => {
@@ -251,6 +257,27 @@ router.get('api/open', ({ res, query }) => {
   sendJson(res, 200, { uri });
 });
 
+// The Ajustes screen offers only shells that really exist here (see
+// app/shells.ts) plus whatever path the user types — never a hardcoded
+// bash, since a clone of this repo may be running on Windows.
+router.get('api/terminal/shells', ({ res }) => {
+  const settings = readSettings();
+  const launch = resolveLaunch(settings);
+  sendJson(res, 200, {
+    platform: process.platform,
+    shells: detectShells(),
+    effective: {
+      shell: launch.command,
+      // The exact argv the PTY will be spawned with — in the default
+      // 'command' mode this is what shows there is no shell underneath.
+      args: launch.args,
+      cwd: resolveCwd(settings.terminalCwd, vaultService.vaultPath),
+      startupCommand: settings.terminalStartupCommand,
+      mode: settings.terminalMode,
+    },
+  });
+});
+
 router.get('api/state', ({ res }) => {
   sendJson(res, 200, readState());
 });
@@ -337,7 +364,7 @@ const server = createServer(async (req, res) => {
 
   if (pathname.startsWith('/api/')) {
     const token = tokenFromRequest(req);
-    if (token !== TOKEN) {
+    if (!tokenMatches(token, TOKEN)) {
       rejectUnauthorized(res, 'missing or invalid token');
       return;
     }
@@ -364,16 +391,38 @@ const server = createServer(async (req, res) => {
   serveStatic(pathname, res);
 });
 
+// WebSocket upgrades bypass the request handler above entirely, so the
+// bridge re-checks Host/Origin/token itself — see http/terminalSocket.ts.
+const terminalWss = attachTerminalBridge(server, {
+  token: TOKEN,
+  port: PORT,
+  readSettings,
+  vaultPath: () => vaultService.vaultPath,
+});
+
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`[mindview] server listening on http://127.0.0.1:${PORT} (loopback only)`);
-  console.log(`[mindview] per-run token: ${TOKEN}`);
+  // Deliberately not printed: since the terminal landed, this token
+  // authorises opening a shell, and a console scrollback (or a screenshot
+  // of one) is a bad place for it. Everything that needs it — Vite, the
+  // test suite — reads it from the file below, which is owner-only.
+  console.log(`[mindview] per-run token written to ${process.env.MINDVIEW_STATE_DIR ?? '~/.local/share/mindview'}/session.json`);
   console.log(`[mindview] the web dev server (Vite) picks this token up automatically via ${process.env.MINDVIEW_STATE_DIR ?? '~/.local/share/mindview'}/session.json`);
   console.log(`[mindview] open the URL Vite prints (usually http://localhost:5173) — do not open port ${PORT} directly except for /api/health`);
 });
 
 async function shutdown(): Promise<void> {
+  // Synchronous, before anything async: waiting for each socket's 'close'
+  // event to fire would race the process exiting.
+  killAllTerminalSessions();
+  for (const client of terminalWss.clients) client.terminate();
+  terminalWss.close();
   await vaultService.close();
+  // /api/events is an SSE stream that never ends on its own, so
+  // server.close() alone would hang forever with the UI open.
+  server.closeAllConnections();
   server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 2000).unref();
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

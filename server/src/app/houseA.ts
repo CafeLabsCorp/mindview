@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { atomicWriteFile, readIfExists } from '../io/atomicWrite.js';
+import { atomicWriteFile, ensureOwnerOnlyDir, readIfExists } from '../io/atomicWrite.js';
 import { HOUSE_A_ROOT, DEFAULT_VAULT_PATH } from './paths.js';
 
 export interface Settings {
@@ -16,6 +16,27 @@ export interface Settings {
   frontmatterPretty: boolean;
   tocEnabled: boolean;
   recentPinnedEnabled: boolean;
+  /** Embedded terminal (Fase 2). Opt-in and off by default: a local web app
+   * that can spawn an arbitrary shell is a very different attack surface
+   * from a read-only reader, so the safe default ships enabled=false and
+   * the WebSocket endpoint refuses the upgrade until it is turned on. */
+  terminalEnabled: boolean;
+  /** Empty = whatever this machine's default shell is (see shells.ts).
+   * Never hardcoded to bash: someone cloning this may be on PowerShell. */
+  terminalShell: string;
+  terminalShellArgs: string[];
+  /** Empty = the active vault root, so the terminal opens *in the Mind*. */
+  terminalCwd: string;
+  /** Typed into the shell right after it starts. Empty = plain shell. */
+  terminalStartupCommand: string;
+  /** 'command' (default): run terminalStartupCommand and nothing else —
+   * the shell execs into it, so quitting the command ends the session and
+   * there is never a prompt to fall back to. 'shell': a full interactive
+   * terminal, with the command merely typed in at the start.
+   * MindView is an app for the Mind, not a shell host, so unrestricted
+   * shell access is opt-in rather than the default. */
+  terminalMode: 'command' | 'shell';
+  terminalFontSize: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -43,11 +64,18 @@ export const DEFAULT_SETTINGS: Settings = {
   frontmatterPretty: true,
   tocEnabled: true,
   recentPinnedEnabled: true,
+  terminalEnabled: false,
+  terminalShell: '',
+  terminalShellArgs: [],
+  terminalCwd: '',
+  terminalStartupCommand: 'claude',
+  terminalMode: 'command',
+  terminalFontSize: 13,
 };
 
 function ensureHouseA(): void {
-  mkdirSync(HOUSE_A_ROOT, { recursive: true });
-  mkdirSync(join(HOUSE_A_ROOT, 'cadernos'), { recursive: true });
+  ensureOwnerOnlyDir(HOUSE_A_ROOT);
+  ensureOwnerOnlyDir(join(HOUSE_A_ROOT, 'cadernos'));
 }
 
 // ---------------------------------------------------------------- config.yaml
@@ -81,13 +109,35 @@ export function writeConfig(cfg: ConfigYaml): void {
 
 const SETTINGS_PATH = () => join(HOUSE_A_ROOT, 'settings.yaml');
 
+/**
+ * Coerces the terminal settings to their declared types before anything
+ * downstream trusts them. settings.yaml is not a trusted file: it is
+ * written by `PUT /api/settings` and editable on disk, and these
+ * particular fields decide *which binary gets spawned with which argv*.
+ * A wrong type here would otherwise reach `node-pty.spawn` (or throw on a
+ * `.trim()` in the middle of an upgrade handler).
+ */
+function sanitizeTerminal(s: Settings): Settings {
+  const str = (v: unknown, fallback: string) => (typeof v === 'string' ? v : fallback);
+  return {
+    ...s,
+    terminalEnabled: s.terminalEnabled === true,
+    terminalShell: str(s.terminalShell, ''),
+    terminalShellArgs: Array.isArray(s.terminalShellArgs) ? s.terminalShellArgs.filter((a): a is string => typeof a === 'string') : [],
+    terminalCwd: str(s.terminalCwd, ''),
+    terminalStartupCommand: str(s.terminalStartupCommand, DEFAULT_SETTINGS.terminalStartupCommand),
+    terminalMode: s.terminalMode === 'shell' ? 'shell' : 'command',
+    terminalFontSize: Number.isFinite(s.terminalFontSize) ? Math.min(32, Math.max(8, Number(s.terminalFontSize))) : DEFAULT_SETTINGS.terminalFontSize,
+  };
+}
+
 export function readSettings(): Settings {
   ensureHouseA();
   const raw = readIfExists(SETTINGS_PATH());
   if (!raw) return DEFAULT_SETTINGS;
   try {
     const parsed = parseYaml(raw) ?? {};
-    return { ...DEFAULT_SETTINGS, ...parsed, tagColors: { ...DEFAULT_SETTINGS.tagColors, ...(parsed.tagColors ?? {}) } };
+    return sanitizeTerminal({ ...DEFAULT_SETTINGS, ...parsed, tagColors: { ...DEFAULT_SETTINGS.tagColors, ...(parsed.tagColors ?? {}) } });
   } catch (err) {
     console.error('[houseA] settings.yaml failed to parse, operating read-only on it, using defaults:', err);
     return DEFAULT_SETTINGS;

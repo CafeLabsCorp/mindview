@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 /** One random token per process run, required as `?token=` on every request. */
@@ -16,6 +16,17 @@ export function isHostAllowed(hostHeader: string | undefined, port: number): boo
   if (!ALLOWED_HOSTS.has(host)) return false;
   const reqPort = portStr ? Number(portStr) : 80;
   return reqPort === port;
+}
+
+/** Length-checked constant-time compare. The token now gates a shell, not
+ * just note reading, so the timing side-channel is worth closing even
+ * though exploiting it over loopback would be impractical. */
+export function tokenMatches(candidate: string | null | undefined, expected: string): boolean {
+  if (typeof candidate !== 'string') return false;
+  const a = Buffer.from(candidate, 'utf-8');
+  const b = Buffer.from(expected, 'utf-8');
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 export function tokenFromRequest(req: IncomingMessage): string | null {

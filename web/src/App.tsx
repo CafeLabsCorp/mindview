@@ -6,16 +6,18 @@ import { Shelf } from './screens/Shelf';
 import { Console } from './screens/Console';
 import { GraphScreen } from './screens/GraphScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { TerminalBar } from './components/TerminalBar';
 import { useHashRoute } from './lib/hashRoute';
 import { TreeProvider } from './context/TreeContext';
 import { useSettings } from './context/SettingsContext';
-import { TerminalBar } from './components/TerminalBar';
 import { loadTerminalPanelState, saveTerminalPanelState } from './lib/terminalPanelState';
 import { loadSidebarOpen, saveSidebarOpen } from './lib/sidebarState';
+import { useTerminalSessions } from './lib/terminalSessions';
 
 // xterm.js is ~250 KB and the terminal ships disabled, so it is code-split
 // out of the main bundle: a session that never opens the panel never
-// downloads it.
+// downloads it. Session *metadata* lives in lib/terminalSessions.ts, which
+// stays in the main bundle so the collapsed bar can list what is running.
 const TerminalPanel = lazy(() => import('./components/TerminalPanel'));
 
 export default function App() {
@@ -24,17 +26,19 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpenState] = useState(loadSidebarOpen);
   const [terminal, setTerminal] = useState(loadTerminalPanelState);
+  const sessions = useTerminalSessions();
+
+  const terminalEnabled = settings.terminalEnabled;
+  // Once expanded, the panel stays mounted for the rest of the session even
+  // while collapsed — unmounting it would close every socket and kill the
+  // shells, which is what "encerrar" is for.
+  const [terminalMounted, setTerminalMounted] = useState(false);
 
   const setSidebarOpen = useCallback((open: boolean) => {
     setSidebarOpenState(open);
     saveSidebarOpen(open);
   }, []);
 
-  const terminalEnabled = settings.terminalEnabled;
-  // Once opened, the panel stays mounted for the rest of the session even
-  // while minimised — unmounting it would close every socket and kill the
-  // shells, which is what "encerrar" is for.
-  const [terminalMounted, setTerminalMounted] = useState(() => terminal.open);
   const setTerminalOpen = useCallback((open: boolean) => {
     setTerminal((prev) => {
       const next = { ...prev, open };
@@ -42,14 +46,7 @@ export default function App() {
       return next;
     });
   }, []);
-  const toggleTerminal = useCallback(() => {
-    setTerminalMounted(true);
-    setTerminal((prev) => {
-      const next = { ...prev, open: !prev.open };
-      saveTerminalPanelState(next);
-      return next;
-    });
-  }, []);
+
   const setTerminalHeight = useCallback((height: number) => {
     setTerminal((prev) => {
       const next = { ...prev, height };
@@ -57,6 +54,30 @@ export default function App() {
       return next;
     });
   }, []);
+
+  const expandTerminal = useCallback(
+    (tabId?: number) => {
+      setTerminalMounted(true);
+      // Expanding with nothing running starts one session. Doing it here
+      // rather than inside the panel keeps `claude` from being launched
+      // behind a collapsed panel nobody can see.
+      if (tabId !== undefined) sessions.activate(tabId);
+      else if (sessions.tabs.length === 0) sessions.open();
+      setTerminalOpen(true);
+    },
+    [sessions, setTerminalOpen],
+  );
+
+  const toggleTerminal = useCallback(() => {
+    if (terminal.open) setTerminalOpen(false);
+    else expandTerminal();
+  }, [terminal.open, setTerminalOpen, expandTerminal]);
+
+  // Ending every session leaves nothing to show, so the panel comes down
+  // on its own rather than sitting there empty.
+  useEffect(() => {
+    if (terminal.open && terminalMounted && sessions.tabs.length === 0) setTerminalOpen(false);
+  }, [terminal.open, terminalMounted, sessions.tabs.length, setTerminalOpen]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -67,7 +88,7 @@ export default function App() {
         e.preventDefault();
         setSearchOpen(true);
       } else if ((e.ctrlKey || e.metaKey) && (e.key === '`' || e.code === 'Backquote')) {
-        // Ctrl+` — the same shortcut VSCode uses for its terminal panel.
+        // Ctrl+` — the same shortcut VS Code uses for its terminal panel.
         // Ignored entirely when the terminal is off in Ajustes, so the key
         // keeps whatever meaning the browser gives it.
         if (!terminalEnabled) return;
@@ -109,13 +130,16 @@ export default function App() {
               <TerminalPanel
                 visible={terminal.open}
                 height={terminal.height}
+                sessions={sessions}
                 onHeightChange={setTerminalHeight}
-                onMinimize={() => setTerminalOpen(false)}
-                onAllClosed={() => setTerminalOpen(false)}
+                onCollapse={() => setTerminalOpen(false)}
               />
             </Suspense>
           )}
-          <TerminalBar enabled={terminalEnabled} open={terminal.open} onToggle={toggleTerminal} />
+          {/* The bar *is* the collapsed panel, so the two are never on
+              screen at once — that duplication is what made round 2's
+              layout confusing. */}
+          {(!terminalEnabled || !terminal.open) && <TerminalBar enabled={terminalEnabled} sessions={sessions} onExpand={expandTerminal} />}
         </div>
       </div>
       <QuickSwitcher open={searchOpen} onClose={() => setSearchOpen(false)} />

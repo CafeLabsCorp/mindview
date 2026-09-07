@@ -1,74 +1,23 @@
-import { useCallback, useEffect, useState } from 'react';
-import { TerminalView, type TerminalStatus } from './TerminalView';
+import { useCallback } from 'react';
+import { TerminalView } from './TerminalView';
 import { useSettings } from '../context/SettingsContext';
 import { clampHeight, MAX_PANEL_HEIGHT, MIN_PANEL_HEIGHT } from '../lib/terminalPanelState';
-
-interface Tab {
-  id: number;
-  /** Bumping this restarts the shell in place, keeping the tab. */
-  restartKey: number;
-  status: TerminalStatus;
-  detail: string;
-}
+import type { TerminalSessions } from '../lib/terminalSessions';
 
 interface Props {
-  /** Minimised, not unmounted: the panel keeps rendering (hidden) so every
+  /** Collapsed, not unmounted: the panel keeps rendering (hidden) so every
    * tab's socket — and therefore its shell — stays alive. Unmounting would
-   * be indistinguishable from "encerrar". */
+   * be indistinguishable from ending the sessions. */
   visible: boolean;
   height: number;
+  sessions: TerminalSessions;
   onHeightChange: (px: number) => void;
-  onMinimize: () => void;
-  /** Called when the last tab is closed — nothing left to show. */
-  onAllClosed: () => void;
+  onCollapse: () => void;
 }
 
-let nextTabId = 1;
-
-export function TerminalPanel({ visible, height, onHeightChange, onMinimize, onAllClosed }: Props) {
+export function TerminalPanel({ visible, height, sessions, onHeightChange, onCollapse }: Props) {
   const { settings } = useSettings();
-  // Starts empty and fills in when the panel is first shown: a tab mounts
-  // a shell the moment it exists, and starting `claude` behind a hidden
-  // panel would be both wasteful and surprising.
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [activeId, setActiveId] = useState<number>(0);
-  const active = tabs.find((t) => t.id === activeId) ?? null;
-
-  const setTabState = useCallback((id: number, status: TerminalStatus, detail: string) => {
-    setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, status, detail } : t)));
-  }, []);
-
-  const openTab = useCallback(() => {
-    const tab: Tab = { id: nextTabId++, restartKey: 0, status: 'connecting', detail: '' };
-    setTabs((prev) => [...prev, tab]);
-    setActiveId(tab.id);
-  }, []);
-
-  const closeTab = useCallback(
-    (id: number) => {
-      // Unmounting the view is what kills the shell: its cleanup closes the
-      // socket, and the server kills the PTY on 'close'. This is the whole
-      // difference between "encerrar" and "minimizar".
-      //
-      // Computed from the current tabs rather than inside a setState
-      // updater: updaters must be pure, and StrictMode runs them twice.
-      const next = tabs.filter((t) => t.id !== id);
-      setTabs(next);
-      if (next.length === 0) onAllClosed();
-      else if (activeId === id) setActiveId(next[next.length - 1].id);
-    },
-    [tabs, activeId, onAllClosed],
-  );
-
-  // Opening the panel with nothing in it starts one session — including
-  // the very first time, and again after everything was closed.
-  useEffect(() => {
-    if (visible && tabs.length === 0) openTab();
-  }, [visible, tabs.length, openTab]);
-
-  const restartTab = useCallback((id: number) => {
-    setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, restartKey: t.restartKey + 1, status: 'connecting', detail: '' } : t)));
-  }, []);
+  const { tabs, activeId, active } = sessions;
 
   const startDrag = useCallback(
     (e: React.PointerEvent) => {
@@ -107,30 +56,48 @@ export function TerminalPanel({ visible, height, onHeightChange, onMinimize, onA
         <div className="terminal-tabs" role="tablist" aria-label="Sessões de terminal">
           {tabs.map((tab, i) => (
             <div key={tab.id} className={`terminal-tab${tab.id === activeId ? ' is-active' : ''}`}>
-              <button role="tab" aria-selected={tab.id === activeId} className="terminal-tab-label mono" onClick={() => setActiveId(tab.id)}>
+              <button
+                role="tab"
+                aria-selected={tab.id === activeId}
+                className="terminal-tab-label mono"
+                onClick={() => sessions.activate(tab.id)}
+              >
                 <span className={`terminal-tab-dot is-${tab.status}`} aria-hidden="true" />
                 terminal {i + 1}
               </button>
-              <button className="terminal-tab-close" onClick={() => closeTab(tab.id)} aria-label={`Encerrar terminal ${i + 1}`} title="Encerrar esta sessão">
+              <button
+                className="terminal-tab-close"
+                onClick={() => sessions.close(tab.id)}
+                aria-label={`Encerrar terminal ${i + 1}`}
+                title="Encerrar esta sessão"
+              >
                 ✕
               </button>
             </div>
           ))}
-          {/* Plain ASCII '+': the fullwidth '＋' has no glyph in JetBrains
-              Mono and rendered as tofu. */}
-          <button className="terminal-tab-new" onClick={openTab} aria-label="Nova sessão de terminal" title="Nova sessão">
-            +
-          </button>
         </div>
         <span className={`terminal-panel-status is-${active?.status ?? 'connecting'}`}>{active?.detail ?? ''}</span>
+        {/* One group of three, rather than a lone button stranded on the
+            right — the arrangement Felipe picked in round 3. */}
         <div className="terminal-panel-actions">
           {active && (active.status === 'exited' || active.status === 'error') && (
-            <button className="btn btn-ghost btn-sm" onClick={() => restartTab(active.id)}>
+            <button className="btn btn-ghost btn-sm" onClick={() => sessions.restart(active.id)}>
               reabrir
             </button>
           )}
-          <button className="btn btn-ghost btn-sm" onClick={onMinimize} aria-label="Minimizar o terminal" title="Minimizar — as sessões continuam rodando">
-            —
+          <button className="terminal-action" onClick={() => sessions.open()} aria-label="Nova sessão de terminal" title="Nova sessão">
+            +
+          </button>
+          <button className="terminal-action" onClick={onCollapse} aria-label="Recolher o terminal" title="Recolher — as sessões continuam rodando">
+            ›
+          </button>
+          <button
+            className="terminal-action"
+            onClick={() => sessions.closeAll()}
+            aria-label="Encerrar todas as sessões"
+            title="Encerrar todas as sessões"
+          >
+            ✕
           </button>
         </div>
       </header>
@@ -141,7 +108,7 @@ export function TerminalPanel({ visible, height, onHeightChange, onMinimize, onA
             active={visible && tab.id === activeId}
             fontSize={settings.terminalFontSize}
             restartKey={tab.restartKey}
-            onStatus={(status, detail) => setTabState(tab.id, status, detail)}
+            onStatus={(status, detail) => sessions.setStatus(tab.id, status, detail)}
           />
         ))}
       </div>

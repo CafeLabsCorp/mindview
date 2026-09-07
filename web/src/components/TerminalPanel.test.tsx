@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
-// Exercises the tab/minimise/close logic, which is where the behaviour
-// lives. TerminalView is mocked out: xterm.js draws to a real canvas and
-// opens a real socket, neither of which jsdom has — and neither is what
-// these rules are about. The rendering half is verified in a real browser.
-import { useState, type ReactElement } from 'react';
+// Exercises the bar/panel contract, which is where the behaviour lives:
+// which surface is on screen, which sessions exist, and what ends a shell.
+// TerminalView is mocked out — xterm needs a real canvas and a real socket,
+// neither of which is what these rules are about. The rendering half is
+// verified in a real browser.
+import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TerminalPanel } from './TerminalPanel';
 import { TerminalBar } from './TerminalBar';
+import { useTerminalSessions } from '../lib/terminalSessions';
 import { FALLBACK_SETTINGS } from '../context/SettingsContext';
-
-const mounted: number[] = [];
 
 vi.mock('./TerminalView', () => ({
   TerminalView: ({ active }: { active: boolean }) => <div data-testid="view" data-active={String(active)} />,
@@ -33,7 +33,6 @@ let root: Root;
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 beforeEach(() => {
-  mounted.length = 0;
   navigate.mockClear();
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -45,126 +44,151 @@ afterEach(() => {
   container.remove();
 });
 
+/** Mirrors App's wiring: the bar and the panel are the collapsed and
+ * expanded forms of one thing, so the rules only make sense together. */
+function Harness({ enabled = true }: { enabled?: boolean }): ReactElement {
+  const sessions = useTerminalSessions();
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  const expand = useCallback(
+    (tabId?: number) => {
+      setMounted(true);
+      if (tabId !== undefined) sessions.activate(tabId);
+      else if (sessions.tabs.length === 0) sessions.open();
+      setOpen(true);
+    },
+    [sessions],
+  );
+
+  useEffect(() => {
+    if (open && mounted && sessions.tabs.length === 0) setOpen(false);
+  }, [open, mounted, sessions.tabs.length]);
+
+  return (
+    <>
+      {enabled && mounted && (
+        <TerminalPanel visible={open} height={280} sessions={sessions} onHeightChange={vi.fn()} onCollapse={() => setOpen(false)} />
+      )}
+      {(!enabled || !open) && <TerminalBar enabled={enabled} sessions={sessions} onExpand={expand} />}
+    </>
+  );
+}
+
 function views(): HTMLElement[] {
   return Array.from(container.querySelectorAll('[data-testid="view"]'));
-}
-function tabs(): HTMLElement[] {
-  return Array.from(container.querySelectorAll('.terminal-tab'));
 }
 function click(el: Element | null | undefined): void {
   act(() => {
     (el as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
 }
-
-/** Stands in for App: owns `visible` and hides the panel when the panel
- * says nothing is left, which is the real contract between the two. */
-function Harness({
-  startVisible,
-  onMinimize,
-  onAllClosed,
-}: {
-  startVisible: boolean;
-  onMinimize: () => void;
-  onAllClosed: () => void;
-}): ReactElement {
-  const [visible, setVisible] = useState(startVisible);
-  return (
-    <TerminalPanel
-      visible={visible}
-      height={280}
-      onHeightChange={vi.fn()}
-      onMinimize={() => {
-        setVisible(false);
-        onMinimize();
-      }}
-      onAllClosed={() => {
-        setVisible(false);
-        onAllClosed();
-      }}
-    />
-  );
+function q(sel: string): Element | null {
+  return container.querySelector(sel);
+}
+function all(sel: string): Element[] {
+  return Array.from(container.querySelectorAll(sel));
+}
+function render(enabled = true) {
+  act(() => root.render(<Harness enabled={enabled} />));
+}
+function panelHidden(): boolean {
+  return (q('.terminal-panel') as HTMLElement | null)?.hidden ?? true;
+}
+function barShown(): boolean {
+  return q('.terminal-bar') !== null;
 }
 
-function renderPanel(startVisible = true) {
-  const onMinimize = vi.fn();
-  const onAllClosed = vi.fn();
-  act(() => {
-    root.render(<Harness startVisible={startVisible} onMinimize={onMinimize} onAllClosed={onAllClosed} />);
-  });
-  return { onMinimize, onAllClosed };
-}
-
-describe('TerminalPanel — sessions', () => {
-  it('does not spin up a shell behind a hidden panel', () => {
-    // Starting `claude` behind a panel nobody can see would be both
-    // wasteful and surprising.
-    renderPanel(false);
+describe('the bar is the collapsed panel', () => {
+  it('starts collapsed, with no shell running behind it', () => {
+    render();
+    expect(barShown()).toBe(true);
     expect(views()).toHaveLength(0);
   });
 
-  it('starts one session the first time it is shown', () => {
-    renderPanel(true);
+  it('expanding starts one session and swaps the bar for the panel', () => {
+    render();
+    click(q('.terminal-bar-btn'));
     expect(views()).toHaveLength(1);
+    expect(panelHidden()).toBe(false);
+    // Never both at once — that duplication is what made round 2 confusing.
+    expect(barShown()).toBe(false);
   });
 
-  it('opens additional sessions and makes the new one active', () => {
-    renderPanel();
-    click(container.querySelector('.terminal-tab-new'));
+  it('collapsing brings the bar back and keeps every shell alive', () => {
+    render();
+    click(q('.terminal-bar-btn'));
+    click(q('.terminal-panel-actions button[aria-label="Recolher o terminal"]'));
+    expect(panelHidden()).toBe(true);
+    expect(barShown()).toBe(true);
+    expect(views()).toHaveLength(1); // still mounted: the socket survives
+    expect(views()[0].dataset.active).toBe('false');
+  });
+
+  it('lists the running sessions while collapsed, so you can see them without expanding', () => {
+    render();
+    click(q('.terminal-bar-btn'));
+    click(q('.terminal-panel-actions button[aria-label="Nova sessão de terminal"]'));
+    click(q('.terminal-panel-actions button[aria-label="Recolher o terminal"]'));
+    expect(all('.terminal-bar-tab')).toHaveLength(2);
+  });
+
+  it('clicking a session in the bar expands straight to it', () => {
+    render();
+    click(q('.terminal-bar-btn'));
+    click(q('.terminal-panel-actions button[aria-label="Nova sessão de terminal"]'));
+    click(q('.terminal-panel-actions button[aria-label="Recolher o terminal"]'));
+    click(all('.terminal-bar-tab')[0]);
+    expect(panelHidden()).toBe(false);
+    expect(views().map((v) => v.dataset.active)).toEqual(['true', 'false']);
+  });
+});
+
+describe('sessions', () => {
+  it('opens additional sessions and activates the new one', () => {
+    render();
+    click(q('.terminal-bar-btn'));
+    click(q('.terminal-panel-actions button[aria-label="Nova sessão de terminal"]'));
     expect(views()).toHaveLength(2);
     expect(views().map((v) => v.dataset.active)).toEqual(['false', 'true']);
-    expect(tabs()).toHaveLength(2);
   });
 
-  it('keeps every session mounted while switching tabs — only visibility changes', () => {
-    renderPanel();
-    click(container.querySelector('.terminal-tab-new'));
-    click(tabs()[0].querySelector('.terminal-tab-label'));
-    expect(views()).toHaveLength(2); // nothing was torn down
+  it('switching tabs tears nothing down — only visibility changes', () => {
+    render();
+    click(q('.terminal-bar-btn'));
+    click(q('.terminal-panel-actions button[aria-label="Nova sessão de terminal"]'));
+    click(all('.terminal-tab-label')[0]);
+    expect(views()).toHaveLength(2);
     expect(views().map((v) => v.dataset.active)).toEqual(['true', 'false']);
   });
 
   it('closing a tab unmounts that session — this is what kills its shell', () => {
-    renderPanel();
-    click(container.querySelector('.terminal-tab-new'));
-    click(tabs()[1].querySelector('.terminal-tab-close'));
+    render();
+    click(q('.terminal-bar-btn'));
+    click(q('.terminal-panel-actions button[aria-label="Nova sessão de terminal"]'));
+    click(all('.terminal-tab-close')[1]);
     expect(views()).toHaveLength(1);
-    expect(views()[0].dataset.active).toBe('true');
   });
 
-  it('closing the last tab empties the panel instead of instantly respawning one', () => {
-    const { onAllClosed } = renderPanel();
-    click(tabs()[0].querySelector('.terminal-tab-close'));
-    expect(onAllClosed).toHaveBeenCalled();
-    // The parent hides the panel on that callback, which is what stops the
-    // "open a session when visible and empty" rule from firing again.
+  it('ending every session brings the panel down instead of leaving it empty', () => {
+    // The exact complaint from round 3: closing everything used to leave a
+    // dark, empty panel on screen.
+    render();
+    click(q('.terminal-bar-btn'));
+    click(q('.terminal-panel-actions button[aria-label="Encerrar todas as sessões"]'));
     expect(views()).toHaveLength(0);
-  });
-
-  it('minimising keeps the session alive — that is the whole difference from closing', () => {
-    const { onMinimize } = renderPanel();
-    click(container.querySelector('.terminal-panel-actions button[aria-label="Minimizar o terminal"]'));
-    expect(onMinimize).toHaveBeenCalled();
-    // Still mounted, just not shown: the socket — and therefore the
-    // shell — survives being minimised.
-    expect(views()).toHaveLength(1);
-    expect(views()[0].dataset.active).toBe('false');
+    expect(panelHidden()).toBe(true);
+    expect(barShown()).toBe(true);
+    expect(all('.terminal-bar-tab')).toHaveLength(0);
   });
 });
 
-describe('TerminalBar — discoverability', () => {
+describe('discoverability', () => {
   it('points at the setting when the terminal is switched off', () => {
-    act(() => root.render(<TerminalBar enabled={false} open={false} onToggle={vi.fn()} />));
-    const btn = container.querySelector('.terminal-bar-btn');
+    render(false);
+    const btn = q('.terminal-bar-btn');
     expect(btn?.textContent).toContain('Ajustes');
     click(btn);
     expect(navigate).toHaveBeenCalledWith('ajustes');
-  });
-
-  it('toggles the panel when the terminal is on', () => {
-    const onToggle = vi.fn();
-    act(() => root.render(<TerminalBar enabled open={false} onToggle={onToggle} />));
-    click(container.querySelector('.terminal-bar-btn'));
-    expect(onToggle).toHaveBeenCalled();
   });
 });

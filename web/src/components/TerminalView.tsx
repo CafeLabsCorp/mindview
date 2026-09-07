@@ -4,8 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { terminalSocketUrl } from '../api/client';
 import { useSettings } from '../context/SettingsContext';
-
-export type TerminalStatus = 'connecting' | 'ready' | 'exited' | 'error';
+import type { TerminalStatus } from '../lib/terminalSessions';
 
 interface Props {
   /** Hidden tabs stay mounted so their shell keeps running — unmounting

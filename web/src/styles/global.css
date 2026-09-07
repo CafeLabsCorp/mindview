@@ -1723,7 +1723,7 @@ input[type='color']::-moz-color-swatch {
 }
 
 .terminal-tab-close,
-.terminal-tab-new {
+.terminal-action {
   background: none;
   border: 0;
   color: var(--on-code-subtle);
@@ -1734,14 +1734,18 @@ input[type='color']::-moz-color-swatch {
 }
 
 .terminal-tab-close:hover,
-.terminal-tab-new:hover {
+.terminal-action:hover {
   color: var(--on-code);
   background: var(--surface-2);
 }
 
-.terminal-tab-new {
+/* The three panel actions read as one group (+ new · collapse · end all)
+   rather than a lone button stranded on the right, which is what round 3
+   was asked to fix. */
+.terminal-action {
   font-size: 13px;
-  margin-left: 4px;
+  line-height: 1;
+  min-width: 24px;
 }
 
 /* ------------------------------------------------------- terminal bar */
@@ -1778,8 +1782,32 @@ input[type='color']::-moz-color-swatch {
   background: var(--surface-2);
 }
 
-.terminal-bar-btn[aria-expanded='true'] {
-  color: var(--accent);
+/* Miniature of the tab strip: with the panel down you can still see what
+   is running, and click straight into it. This is what makes the bar the
+   collapsed *form* of the panel rather than a second control for it. */
+.terminal-bar-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.terminal-bar-tab:hover {
+  color: var(--fg);
+  background: var(--surface-2);
+}
+
+.terminal-bar-caret {
+  display: inline-block;
+  transform: rotate(90deg);
+  font-size: 13px;
+  line-height: 1;
 }
 
 .terminal-bar-btn.is-off {

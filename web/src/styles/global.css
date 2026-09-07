@@ -13,6 +13,16 @@
   box-sizing: border-box;
 }
 
+/* The browser's own `[hidden] { display: none }` lives in the UA
+   stylesheet, which ANY author rule outranks — so an element with, say,
+   `display: flex` ignores the attribute entirely and stays on screen. That
+   is exactly how the terminal panel kept showing its dark header after
+   being minimised. Same lesson as the graph's label bug: never let two
+   mechanisms fight over one property. `hidden` wins here, always. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body,
 #root {

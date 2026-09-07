@@ -10,9 +10,10 @@ import { TerminalBar } from './components/TerminalBar';
 import { useHashRoute } from './lib/hashRoute';
 import { TreeProvider } from './context/TreeContext';
 import { useSettings } from './context/SettingsContext';
-import { loadTerminalPanelState, saveTerminalPanelState } from './lib/terminalPanelState';
+import { loadTerminalHeight, saveTerminalHeight } from './lib/terminalPanelState';
 import { loadSidebarOpen, saveSidebarOpen } from './lib/sidebarState';
 import { useTerminalSessions } from './lib/terminalSessions';
+import { useT } from './i18n/useT';
 
 // xterm.js is ~250 KB and the terminal ships disabled, so it is code-split
 // out of the main bundle: a session that never opens the panel never
@@ -23,9 +24,14 @@ const TerminalPanel = lazy(() => import('./components/TerminalPanel'));
 export default function App() {
   const route = useHashRoute();
   const { settings } = useSettings();
+  const t = useT();
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpenState] = useState(loadSidebarOpen);
-  const [terminal, setTerminal] = useState(loadTerminalPanelState);
+  // Always starts collapsed, never restored from storage — see
+  // lib/terminalPanelState.ts for why a persisted "open" left the app
+  // booting with neither the panel nor the bar on screen.
+  const [terminalOpen, setTerminalOpenState] = useState(false);
+  const [terminalHeight, setTerminalHeightState] = useState(loadTerminalHeight);
   const sessions = useTerminalSessions();
 
   const terminalEnabled = settings.terminalEnabled;
@@ -39,20 +45,11 @@ export default function App() {
     saveSidebarOpen(open);
   }, []);
 
-  const setTerminalOpen = useCallback((open: boolean) => {
-    setTerminal((prev) => {
-      const next = { ...prev, open };
-      saveTerminalPanelState(next);
-      return next;
-    });
-  }, []);
+  const setTerminalOpen = useCallback((open: boolean) => setTerminalOpenState(open), []);
 
   const setTerminalHeight = useCallback((height: number) => {
-    setTerminal((prev) => {
-      const next = { ...prev, height };
-      saveTerminalPanelState(next);
-      return next;
-    });
+    setTerminalHeightState(height);
+    saveTerminalHeight(height);
   }, []);
 
   const expandTerminal = useCallback(
@@ -69,15 +66,15 @@ export default function App() {
   );
 
   const toggleTerminal = useCallback(() => {
-    if (terminal.open) setTerminalOpen(false);
+    if (terminalOpen) setTerminalOpen(false);
     else expandTerminal();
-  }, [terminal.open, setTerminalOpen, expandTerminal]);
+  }, [terminalOpen, setTerminalOpen, expandTerminal]);
 
   // Ending every session leaves nothing to show, so the panel comes down
   // on its own rather than sitting there empty.
   useEffect(() => {
-    if (terminal.open && terminalMounted && sessions.tabs.length === 0) setTerminalOpen(false);
-  }, [terminal.open, terminalMounted, sessions.tabs.length, setTerminalOpen]);
+    if (terminalOpen && terminalMounted && sessions.tabs.length === 0) setTerminalOpen(false);
+  }, [terminalOpen, terminalMounted, sessions.tabs.length, setTerminalOpen]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -112,11 +109,16 @@ export default function App() {
           onOpenSearch={() => setSearchOpen(true)}
           onHide={() => setSidebarOpen(false)}
         />
-        {!sidebarOpen && (
-          <button className="sidebar-rail" onClick={() => setSidebarOpen(true)} aria-label="Mostrar a barra lateral" title="Mostrar a barra lateral">
-            ⟩⟩
-          </button>
-        )}
+        {/* Always mounted so it can widen as the sidebar slides away, instead
+            of popping in and shoving the main column sideways. */}
+        <button
+          className={`sidebar-rail${sidebarOpen ? ' is-hidden' : ''}`}
+          onClick={() => setSidebarOpen(true)}
+          aria-label={t('nav.showSidebar')}
+          title={t('nav.showSidebar')}
+        >
+          ⟩⟩
+        </button>
         <div className="main-col">
           <div className="screen-area">
             {route.screen === 'read' && <Reader path={route.param} />}
@@ -128,8 +130,8 @@ export default function App() {
           {terminalEnabled && terminalMounted && (
             <Suspense fallback={null}>
               <TerminalPanel
-                visible={terminal.open}
-                height={terminal.height}
+                visible={terminalOpen}
+                height={terminalHeight}
                 sessions={sessions}
                 onHeightChange={setTerminalHeight}
                 onCollapse={() => setTerminalOpen(false)}
@@ -139,7 +141,7 @@ export default function App() {
           {/* The bar *is* the collapsed panel, so the two are never on
               screen at once — that duplication is what made round 2's
               layout confusing. */}
-          {(!terminalEnabled || !terminal.open) && <TerminalBar enabled={terminalEnabled} sessions={sessions} onExpand={expandTerminal} />}
+          {(!terminalEnabled || !terminalOpen) && <TerminalBar enabled={terminalEnabled} sessions={sessions} onExpand={expandTerminal} />}
         </div>
       </div>
       <QuickSwitcher open={searchOpen} onClose={() => setSearchOpen(false)} />

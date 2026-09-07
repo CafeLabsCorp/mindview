@@ -670,6 +670,18 @@ adiciona ciclo de vida de processo órfão a uma feature cuja primeira versão
 sai desligado, então o `TerminalPanel` é `React.lazy()`-ado pro próprio
 chunk: uma sessão que nunca abre o painel nunca baixa isso.
 
+**O painel nunca sobe aberto.** A altura dele é lembrada entre reloads; o
+estado aberto/fechado, de propósito, não. Já foi, e a combinação era
+inalcançável: `terminalMounted` volta a `false` a cada carregamento, então
+um `open: true` restaurado não renderizava painel nenhum — e a barra, que
+se esconde sempre que o painel está "aberto", também não renderizava nada.
+O app subia com o terminal simplesmente sumido, e o `Ctrl+\`` parecia
+quebrado porque o primeiro toque só limpava a flag invisível. Restaurar
+"aberto" com honestidade significaria restaurar as *sessões*, e um reload
+mata todo PTY (ver Tempo de vida da sessão acima) — então o app sobe
+recolhido, mostrando a barra, que é a única coisa que continua verdadeira
+depois de um reload.
+
 ## 13. Duas línguas, sem next-intl
 
 A interface sai em inglês e português. Os outros repositórios daqui

@@ -637,6 +637,17 @@ kept small.
 ships disabled, so `TerminalPanel` is `React.lazy()`-ed into its own chunk:
 a session that never opens the panel never downloads it.
 
+**The panel never boots open.** Its height is remembered across reloads;
+its open/closed state deliberately is not. It used to be, and the
+combination was unreachable: `terminalMounted` resets to `false` on every
+load, so a restored `open: true` rendered no panel — while the bar, which
+hides itself whenever the panel is "open", rendered nothing either. The app
+came up with the terminal simply gone, and `Ctrl+\`` appeared broken
+because the first press only cleared the invisible flag. Restoring "open"
+honestly would mean restoring the *sessions*, and a reload kills every PTY
+(see Session lifetime above) — so the app boots collapsed, showing the bar,
+which is the one thing that is still true after a reload.
+
 ## 13. Two languages, without next-intl
 
 The UI ships in English and Portuguese. The other repos here (mind-landing,

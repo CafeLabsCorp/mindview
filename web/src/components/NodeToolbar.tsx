@@ -1,3 +1,5 @@
+import { useT } from '../i18n/useT';
+
 interface NodeToolbarProps {
   obsidian: string | null;
   vscode: string | null;
@@ -20,28 +22,29 @@ export function NodeToolbar({
   tocCollapsed,
   onToggleToc,
 }: NodeToolbarProps) {
+  const t = useT();
   return (
     <div className="node-toolbar">
       {obsidian && (
         <a className="btn" href={obsidian}>
-          Abrir no Obsidian
+          {t('reader.openInObsidian')}
         </a>
       )}
       {vscode && (
         <a className="btn" href={vscode}>
-          Abrir no VSCode
+          {t('reader.openInVSCode')}
         </a>
       )}
       <button className={`btn${isPinned ? ' btn-primary' : ''}`} onClick={onTogglePin}>
-        {isPinned ? '★ Fixado' : '☆ Fixar'}
+        {isPinned ? t('reader.pinned') : t('reader.pin')}
       </button>
       {showTocToggle && (
         <button
           className={`btn${tocCollapsed ? '' : ' btn-primary'}`}
           onClick={onToggleToc}
-          title={tocCollapsed ? 'Mostrar índice' : 'Ocultar índice'}
+          title={tocCollapsed ? t('reader.showToc') : t('reader.hideToc')}
         >
-          ☰ Índice
+          {t('reader.tocButton')}
         </button>
       )}
     </div>

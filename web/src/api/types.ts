@@ -42,6 +42,7 @@ export interface BoardResponse {
 export interface Settings {
   accent: string;
   theme: 'dark' | 'light' | 'system';
+  language: 'auto' | 'en' | 'pt';
   linkColorOverride: string | null;
   bodyFont: string;
   readSize: number;

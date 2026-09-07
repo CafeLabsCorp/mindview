@@ -3,6 +3,7 @@ import { TerminalView } from './TerminalView';
 import { useSettings } from '../context/SettingsContext';
 import { clampHeight, MAX_PANEL_HEIGHT, MIN_PANEL_HEIGHT } from '../lib/terminalPanelState';
 import type { TerminalSessions } from '../lib/terminalSessions';
+import { useT } from '../i18n/useT';
 
 interface Props {
   /** Collapsed, not unmounted: the panel keeps rendering (hidden) so every
@@ -17,6 +18,7 @@ interface Props {
 
 export function TerminalPanel({ visible, height, sessions, onHeightChange, onCollapse }: Props) {
   const { settings } = useSettings();
+  const t = useT();
   const { tabs, activeId, active } = sessions;
 
   const startDrag = useCallback(
@@ -36,13 +38,13 @@ export function TerminalPanel({ visible, height, sessions, onHeightChange, onCol
   );
 
   return (
-    <section className="terminal-panel" style={{ height }} aria-label="Terminal" hidden={!visible}>
+    <section className="terminal-panel" style={{ height }} aria-label={t('terminal.label')} hidden={!visible}>
       <div
         className="terminal-resize-handle"
         onPointerDown={startDrag}
         role="separator"
         aria-orientation="horizontal"
-        aria-label="Redimensionar o terminal"
+        aria-label={t('terminal.resize')}
         aria-valuenow={height}
         aria-valuemin={MIN_PANEL_HEIGHT}
         aria-valuemax={MAX_PANEL_HEIGHT}
@@ -53,7 +55,7 @@ export function TerminalPanel({ visible, height, sessions, onHeightChange, onCol
         }}
       />
       <header className="terminal-panel-head">
-        <div className="terminal-tabs" role="tablist" aria-label="Sessões de terminal">
+        <div className="terminal-tabs" role="tablist" aria-label={t('terminal.sessions')}>
           {tabs.map((tab, i) => (
             <div key={tab.id} className={`terminal-tab${tab.id === activeId ? ' is-active' : ''}`}>
               <button
@@ -63,13 +65,13 @@ export function TerminalPanel({ visible, height, sessions, onHeightChange, onCol
                 onClick={() => sessions.activate(tab.id)}
               >
                 <span className={`terminal-tab-dot is-${tab.status}`} aria-hidden="true" />
-                terminal {i + 1}
+                {t('terminal.tab', { n: i + 1 })}
               </button>
               <button
                 className="terminal-tab-close"
                 onClick={() => sessions.close(tab.id)}
-                aria-label={`Encerrar terminal ${i + 1}`}
-                title="Encerrar esta sessão"
+                aria-label={t('terminal.endSessionAria', { n: i + 1 })}
+                title={t('terminal.endSession')}
               >
                 ✕
               </button>
@@ -82,20 +84,20 @@ export function TerminalPanel({ visible, height, sessions, onHeightChange, onCol
         <div className="terminal-panel-actions">
           {active && (active.status === 'exited' || active.status === 'error') && (
             <button className="btn btn-ghost btn-sm" onClick={() => sessions.restart(active.id)}>
-              reabrir
+              {t('terminal.reopen')}
             </button>
           )}
-          <button className="terminal-action" onClick={() => sessions.open()} aria-label="Nova sessão de terminal" title="Nova sessão">
+          <button className="terminal-action" onClick={() => sessions.open()} aria-label={t('terminal.newSessionAria')} title={t('terminal.newSession')}>
             +
           </button>
-          <button className="terminal-action" onClick={onCollapse} aria-label="Recolher o terminal" title="Recolher — as sessões continuam rodando">
+          <button className="terminal-action" onClick={onCollapse} aria-label={t('terminal.collapse')} title={t('terminal.collapseTitle')}>
             ›
           </button>
           <button
             className="terminal-action"
             onClick={() => sessions.closeAll()}
-            aria-label="Encerrar todas as sessões"
-            title="Encerrar todas as sessões"
+            aria-label={t('terminal.endAll')}
+            title={t('terminal.endAll')}
           >
             ✕
           </button>

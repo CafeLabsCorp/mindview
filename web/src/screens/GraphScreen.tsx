@@ -8,6 +8,7 @@ import { buildGraphModel } from '../lib/graphModel';
 import { DEFAULT_GRAPH_PREFS, loadGraphPrefs, saveGraphPrefs, type GraphPrefs } from '../lib/graphPrefs';
 import { GraphSim, edgeAppear, nodeAppear, nodeScale, type SimNode } from '../lib/graphSim';
 import { GraphControls } from './GraphControls';
+import { useT } from '../i18n/useT';
 
 interface View {
   x: number;
@@ -41,6 +42,7 @@ function fitView(
 export function GraphScreen() {
   const { data, loading, error } = useApi<VaultGraph>('/graph');
   const { settings } = useSettings();
+  const t = useT();
 
   const [prefs, setPrefs] = useState<GraphPrefs>(loadGraphPrefs);
   const setPref = useCallback(<K extends keyof GraphPrefs>(key: K, value: GraphPrefs[K]) => {
@@ -278,9 +280,9 @@ export function GraphScreen() {
 
   return (
     <div className="graph-screen-outer">
-      <TerminalChrome path="~/mind/grafo" />
+      <TerminalChrome path={t('chrome.graph')} />
       <div className="graph-canvas" ref={wrapRef}>
-        {loading && <div className="graph-status">Carregando grafo…</div>}
+        {loading && <div className="graph-status">{t('graph.loading')}</div>}
         {error && <div className="error-banner">{error}</div>}
 
         <svg
@@ -392,11 +394,11 @@ export function GraphScreen() {
               followRef.current = true;
               wake();
             }}
-            title="reiniciar simulação"
+            title={t('graph.restartSim')}
           >
             ↻
           </button>
-          <button onClick={recenter} title="recentralizar">
+          <button onClick={recenter} title={t('graph.recenter')}>
             ⊙
           </button>
         </div>
@@ -417,10 +419,8 @@ export function GraphScreen() {
             {hoveredNode.path && <div className="graph-hover-path">{hoveredNode.path}</div>}
             <div className="graph-hover-meta">
               {hoveredNode.kind === 'tag'
-                ? `${hoveredNode.degree} nó${hoveredNode.degree === 1 ? '' : 's'}`
-                : hoveredNode.degree === 1
-                  ? '1 conexão'
-                  : `${hoveredNode.degree} conexões`}
+                ? t('graph.tagDegree', { count: hoveredNode.degree })
+                : t('graph.degree', { count: hoveredNode.degree })}
               {hoveredNode.kind === 'file' && hoveredNode.tags.length > 0 && ` · #${hoveredNode.tags.join(' #')}`}
             </div>
           </div>

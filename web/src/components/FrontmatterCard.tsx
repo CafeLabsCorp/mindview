@@ -2,17 +2,19 @@ import { useSettings } from '../context/SettingsContext';
 import { checkTagColorContrast } from '../lib/contrast';
 import { autoColorForTag } from '../lib/tagPalette';
 import { useThemeColors } from '../lib/useThemeColors';
+import { useLocale, useT } from '../i18n/useT';
 
-function formatDate(iso: string | null): string | null {
+function formatDate(iso: string | null, intlTag: string): string | null {
   if (!iso) return null;
   const d = new Date(iso + 'T00:00:00');
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString(intlTag, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function TagPill({ tag }: { tag: string }) {
   const { settings } = useSettings();
   const { fg, bg } = useThemeColors();
+  const t = useT();
   // The Ajustes map wins; a tag the user hasn't coloured falls back to the
   // SAME stable hash the graph uses (tagPalette.autoColorForTag), not a flat
   // blue — one tag, one colour, everywhere. The old `var(--blue)` fallback
@@ -39,7 +41,7 @@ export function TagPill({ tag }: { tag: string }) {
         borderColor: `color-mix(in srgb, ${color} 45%, transparent)`,
         background: `color-mix(in srgb, ${color} 14%, transparent)`,
       }}
-      title={failsRelevantContrast ? `Contraste abaixo de 4.5:1 (vs bg: ${contrast!.vsBg.ratio.toFixed(2)})` : tag}
+      title={failsRelevantContrast ? t('reader.lowContrastTag', { ratio: contrast!.vsBg.ratio.toFixed(2) }) : tag}
     >
       #{tag}
     </span>
@@ -56,9 +58,11 @@ interface FrontmatterCardProps {
  * bonito" — tags as colored pills + formatted dates, never raw YAML. */
 export function FrontmatterCard({ tags, criado, atualizado }: FrontmatterCardProps) {
   const { settings } = useSettings();
+  const t = useT();
+  const { intl } = useLocale();
   if (!settings.frontmatterPretty) return null;
-  const criadoFmt = formatDate(criado);
-  const atualizadoFmt = formatDate(atualizado);
+  const criadoFmt = formatDate(criado, intl);
+  const atualizadoFmt = formatDate(atualizado, intl);
   if (tags.length === 0 && !criadoFmt && !atualizadoFmt) return null;
   return (
     <div className="meta-row">
@@ -67,8 +71,16 @@ export function FrontmatterCard({ tags, criado, atualizado }: FrontmatterCardPro
       ))}
       {(criadoFmt || atualizadoFmt) && (
         <span className="meta-dates">
-          {criadoFmt && <span>criado {criadoFmt}</span>}
-          {atualizadoFmt && <span>atualizado {atualizadoFmt}</span>}
+          {criadoFmt && (
+            <span>
+              {t('reader.created')} {criadoFmt}
+            </span>
+          )}
+          {atualizadoFmt && (
+            <span>
+              {t('reader.updated')} {atualizadoFmt}
+            </span>
+          )}
         </span>
       )}
     </div>

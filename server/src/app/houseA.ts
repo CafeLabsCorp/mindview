@@ -7,6 +7,9 @@ import { HOUSE_A_ROOT, DEFAULT_VAULT_PATH } from './paths.js';
 export interface Settings {
   accent: string;
   theme: 'dark' | 'light' | 'system';
+  /** UI language. 'auto' follows the browser — the same three-state shape
+   * as `theme`. Only the chrome is translated; vault content never is. */
+  language: 'auto' | 'en' | 'pt';
   linkColorOverride: string | null;
   bodyFont: string;
   readSize: number;
@@ -42,6 +45,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   accent: '#3fb950',
   theme: 'dark',
+  language: 'auto',
   linkColorOverride: null,
   bodyFont: "'Inter',system-ui,sans-serif",
   readSize: 15.5,
@@ -121,6 +125,9 @@ function sanitizeTerminal(s: Settings): Settings {
   const str = (v: unknown, fallback: string) => (typeof v === 'string' ? v : fallback);
   return {
     ...s,
+    // Not a terminal field, but the same reason applies: settings.yaml is
+    // hand-editable, and the web side switches on this exhaustively.
+    language: s.language === 'en' || s.language === 'pt' ? s.language : 'auto',
     terminalEnabled: s.terminalEnabled === true,
     terminalShell: str(s.terminalShell, ''),
     terminalShellArgs: Array.isArray(s.terminalShellArgs) ? s.terminalShellArgs.filter((a): a is string => typeof a === 'string') : [],

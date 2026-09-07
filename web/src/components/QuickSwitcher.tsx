@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import type { SearchHit } from '../api/types';
 import { navigate } from '../lib/hashRoute';
+import { useT } from '../i18n/useT';
 
 interface QuickSwitcherProps {
   open: boolean;
@@ -20,6 +21,7 @@ export function QuickSwitcher({ open, onClose }: QuickSwitcherProps) {
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const t = useT();
 
   useEffect(() => {
     if (open) {
@@ -54,7 +56,7 @@ export function QuickSwitcher({ open, onClose }: QuickSwitcherProps) {
         <input
           ref={inputRef}
           className="modal-input"
-          placeholder="Buscar nós, títulos, headings…"
+          placeholder={t('search.placeholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -77,7 +79,7 @@ export function QuickSwitcher({ open, onClose }: QuickSwitcherProps) {
               <span className="path">{h.path}</span>
             </div>
           ))}
-          {query.trim() && hits.length === 0 && <div className="modal-result path">nenhum resultado</div>}
+          {query.trim() && hits.length === 0 && <div className="modal-result path">{t('common.noResults')}</div>}
         </div>
       </div>
     </div>

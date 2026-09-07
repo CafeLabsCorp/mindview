@@ -5,6 +5,7 @@ import type { HeadingInfo, LinkInfo } from '../api/types';
 import { navigate } from '../lib/hashRoute';
 import { remarkTaskStates } from '../lib/remarkTaskStates';
 import { useTree } from '../context/TreeContext';
+import { useT } from '../i18n/useT';
 
 interface MarkdownBodyProps {
   raw: string;
@@ -28,6 +29,7 @@ interface MarkdownBodyProps {
  */
 export function MarkdownBody({ raw, headings, links }: MarkdownBodyProps) {
   const { pathSet } = useTree();
+  const t = useT();
   const linkMap = new Map(links.map((l) => [l.raw, l] as const));
   let headingIndex = 0;
 
@@ -58,7 +60,7 @@ export function MarkdownBody({ raw, headings, links }: MarkdownBodyProps) {
 
     if (link.outsideVault) {
       return (
-        <a href={href} data-outside-vault="true" title="este link sai do vault — não é seguido" onClick={(e) => e.preventDefault()}>
+        <a href={href} data-outside-vault="true" title={t('reader.linkOutsideVault')} onClick={(e) => e.preventDefault()}>
           {props.children}
         </a>
       );
@@ -85,7 +87,7 @@ export function MarkdownBody({ raw, headings, links }: MarkdownBodyProps) {
       <a
         href={`#/read/${encodeURIComponent(target)}`}
         data-broken={!exists}
-        title={exists ? target : `link quebrado — ${target} não existe no vault`}
+        title={exists ? target : t('reader.brokenLink', { path: target })}
         onClick={(e) => {
           e.preventDefault();
           if (!exists) return;

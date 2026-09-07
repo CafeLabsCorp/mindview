@@ -669,3 +669,39 @@ adiciona ciclo de vida de processo órfão a uma feature cuja primeira versão
 **Controle de custo no cliente.** O `@xterm/xterm` tem ~250 KB e o terminal
 sai desligado, então o `TerminalPanel` é `React.lazy()`-ado pro próprio
 chunk: uma sessão que nunca abre o painel nunca baixa isso.
+
+## 13. Duas línguas, sem next-intl
+
+A interface sai em inglês e português. Os outros repositórios daqui
+(mind-landing, dindin-landing, domo-landing, cafelabs-portifolio) são apps
+Next.js com next-intl, catálogos `messages/en.json` + `messages/pt.json` e
+um segmento de rota `[locale]`. O MindView é uma SPA em Vite atrás de um
+hash router: não existe segmento de rota onde pendurar o locale, e o
+next-intl é acoplado ao Next.
+
+Então isto mantém a metade que carrega a consistência — os arquivos de
+catálogo, no mesmo lugar, com a mesma forma de namespaces — e substitui a
+metade que não transplanta por ~90 linhas em `web/src/i18n/`: busca por
+chave pontuada, interpolação de `{nome}` e entradas de plural
+`{one, other}`. Nenhuma dependência nova, o que combina com a forma como o
+resto deste código trata problemas pequenos e bem entendidos (`hashRoute`,
+`graphPanelState`, `tagPalette`).
+
+- **Inglês é a língua-base**, como em todo repositório daqui. O `en.json` é
+  o arquivo que precisa ter todas as chaves; o que faltar no `pt.json` cai
+  nele em vez de mostrar uma chave crua pro usuário. Um teste garante que
+  os dois catálogos têm as mesmas chaves *e* os mesmos placeholders, então
+  um `{count}` presente numa língua e ausente na outra quebra antes de
+  alguém ver.
+- **A preferência mora no `settings.yaml`**, ao lado do `theme`, não no
+  `localStorage`. É preferência de verdade, não estado de UI por navegador
+  — passa no mesmo teste que o `theme` — e tem os mesmos três estados:
+  `en`, `pt` ou `auto`, que lê o `navigator.languages`. Só a subtag
+  primária importa, então pt-BR e pt-PT são ambos `pt`.
+- **O vault nunca é traduzido.** Títulos de nós, tags, headings e caminhos
+  são as palavras do próprio usuário; só a moldura em volta muda. Datas
+  seguem o locale resolvido (`toLocaleDateString`), porque data é
+  formatação, não conteúdo.
+- **Os testes selecionam pelo catálogo**, nunca por um rótulo literal
+  (`t('terminal.collapse')`, não `"Recolher o terminal"`), pra reescrever
+  um texto continuar sendo mudança de tradução em vez de teste quebrado.

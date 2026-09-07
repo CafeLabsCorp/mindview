@@ -7,13 +7,23 @@ import { api, ApiError } from '../api/client';
 import type { ConfigResponse, TerminalShellsResponse } from '../api/types';
 import { checkTagColorContrast } from '../lib/contrast';
 import { useThemeColors } from '../lib/useThemeColors';
+import { useT } from '../i18n/useT';
+import { LOCALES, type MessageKey, type TFn } from '../i18n';
 
-const READ_FONTS = [
-  { label: 'Inter (padrão)', value: "'Inter',system-ui,sans-serif" },
-  { label: 'Space Grotesk', value: "'Space Grotesk',system-ui,sans-serif" },
-  { label: 'JetBrains Mono', value: "'JetBrains Mono',ui-monospace,monospace" },
-  { label: 'Fonte do sistema', value: 'system-ui,sans-serif' },
+/** Two of the four names are real product names and stay untranslated;
+ * only the two descriptive ones carry a key. */
+const READ_FONTS: { label: MessageKey | null; literal?: string; value: string }[] = [
+  { label: 'settings.fontInter', value: "'Inter',system-ui,sans-serif" },
+  { label: null, literal: 'Space Grotesk', value: "'Space Grotesk',system-ui,sans-serif" },
+  { label: null, literal: 'JetBrains Mono', value: "'JetBrains Mono',ui-monospace,monospace" },
+  { label: 'settings.fontSystem', value: 'system-ui,sans-serif' },
 ];
+
+/** Endonyms: a language is always listed in its own language, so someone
+ * who cannot read the current UI can still find theirs. */
+const LANGUAGE_NAMES: Record<(typeof LOCALES)[number], string> = { en: 'English', pt: 'Português' };
+
+const fontLabel = (t: TFn, f: (typeof READ_FONTS)[number]) => (f.label ? t(f.label) : f.literal!);
 
 /** A fixed set of knobs, deliberately not arbitrary CSS/snippets/3rd-party
  * themes (that's an explicit MVP exclusion) — see the task brief's
@@ -22,32 +32,33 @@ const READ_FONTS = [
 export function SettingsScreen() {
   const { settings, update } = useSettings();
   const { fg, bg } = useThemeColors();
+  const t = useT();
 
   return (
     <>
-      <TerminalChrome path="~/mind/ajustes" />
+      <TerminalChrome path={t('chrome.settings')} />
       <div className="settings-screen">
         <section className="settings-group">
           <div className="settings-group-head">
-            <h3>Aparência</h3>
+            <h3>{t('settings.appearance')}</h3>
             <button
               className="btn btn-ghost btn-sm"
               onClick={() => update({ accent: FALLBACK_SETTINGS.accent, linkColorOverride: FALLBACK_SETTINGS.linkColorOverride, theme: FALLBACK_SETTINGS.theme })}
             >
-              restaurar padrão
+              {t('common.restoreDefaults')}
             </button>
           </div>
           <div className="settings-row">
             <div>
-              <label>Cor de destaque (accent)</label>
-              <span className="hint">botões, seleção, links ativos — default é o verde do Mind</span>
+              <label>{t('settings.accent')}</label>
+              <span className="hint">{t('settings.accentHint')}</span>
             </div>
             <input type="color" value={settings.accent} onChange={(e) => update({ accent: e.target.value })} />
           </div>
           <div className="settings-row">
             <div>
-              <label>Cor dos links</label>
-              <span className="hint">deixe em branco pra usar a cor de destaque</span>
+              <label>{t('settings.linkColor')}</label>
+              <span className="hint">{t('settings.linkColorHint')}</span>
             </div>
             <input
               type="color"
@@ -56,18 +67,36 @@ export function SettingsScreen() {
             />
           </div>
           <div className="settings-row">
-            <label>Tema</label>
+            <label>{t('settings.theme')}</label>
             <select className="text-input" value={settings.theme} onChange={(e) => update({ theme: e.target.value as typeof settings.theme })}>
-              <option value="dark">Escuro</option>
-              <option value="light">Claro</option>
-              <option value="system">Seguir o sistema</option>
+              <option value="dark">{t('settings.themeDark')}</option>
+              <option value="light">{t('settings.themeLight')}</option>
+              <option value="system">{t('settings.themeSystem')}</option>
+            </select>
+          </div>
+          <div className="settings-row">
+            <div>
+              <label>{t('settings.language')}</label>
+              <span className="hint">{t('settings.languageHint')}</span>
+            </div>
+            <select
+              className="text-input"
+              value={settings.language}
+              onChange={(e) => update({ language: e.target.value as typeof settings.language })}
+            >
+              <option value="auto">{t('settings.languageAuto')}</option>
+              {LOCALES.map((l) => (
+                <option key={l} value={l}>
+                  {LANGUAGE_NAMES[l]}
+                </option>
+              ))}
             </select>
           </div>
         </section>
 
         <section className="settings-group">
           <div className="settings-group-head">
-            <h3>Tipografia da leitura</h3>
+            <h3>{t('settings.typography')}</h3>
             <button
               className="btn btn-ghost btn-sm"
               onClick={() =>
@@ -79,24 +108,24 @@ export function SettingsScreen() {
                 })
               }
             >
-              restaurar padrão
+              {t('common.restoreDefaults')}
             </button>
           </div>
           <span className="hint" style={{ display: 'block', marginBottom: 10 }}>
-            afeta só o conteúdo lido — sidebar, terminal e navegação ficam sempre em Inter/JetBrains Mono.
+            {t('settings.typographyHint')}
           </span>
           <div className="settings-row">
-            <label>Fonte</label>
+            <label>{t('settings.font')}</label>
             <select className="text-input" value={settings.bodyFont} onChange={(e) => update({ bodyFont: e.target.value })}>
               {READ_FONTS.map((f) => (
                 <option key={f.value} value={f.value}>
-                  {f.label}
+                  {fontLabel(t, f)}
                 </option>
               ))}
             </select>
           </div>
           <div className="settings-row">
-            <label>Tamanho ({settings.readSize}px)</label>
+            <label>{t('settings.size', { value: settings.readSize })}</label>
             <input
               type="range"
               min={13}
@@ -107,7 +136,7 @@ export function SettingsScreen() {
             />
           </div>
           <div className="settings-row">
-            <label>Largura da coluna ({settings.colWidth}px)</label>
+            <label>{t('settings.colWidth', { value: settings.colWidth })}</label>
             <input
               type="range"
               min={480}
@@ -118,7 +147,7 @@ export function SettingsScreen() {
             />
           </div>
           <div className="settings-row">
-            <label>Espaçamento de linha ({settings.lineHeight.toFixed(2)})</label>
+            <label>{t('settings.lineHeight', { value: settings.lineHeight.toFixed(2) })}</label>
             <input
               type="range"
               min={1.3}
@@ -131,10 +160,9 @@ export function SettingsScreen() {
         </section>
 
         <section className="settings-group">
-          <h3>Cores das tags</h3>
+          <h3>{t('settings.tagColors')}</h3>
           <span className="hint" style={{ display: 'block', marginBottom: 10 }}>
-            reaproveitadas na leitura, na estante e no grafo. Uma tag sem cor aqui recebe uma cor estável da paleta ANSI de
-            terminal, sem verde — verde é reservado pro accent.
+            {t('settings.tagColorsHint')}
           </span>
           <div className="tag-color-grid">
             {Object.entries(settings.tagColors).map(([tag, color]) => {
@@ -147,8 +175,14 @@ export function SettingsScreen() {
                   <input type="color" value={color} onChange={(e) => update({ tagColors: { [tag]: e.target.value } })} />
                   <span>#{tag}</span>
                   {!contrast.vsBg.passes && (
-                    <span className="contrast-flag" title={`vs bg: ${contrast.vsBg.ratio.toFixed(2)}:1, vs fg: ${contrast.vsFg.ratio.toFixed(2)}:1 (mín. 4.5:1)`}>
-                      contraste baixo
+                    <span
+                      className="contrast-flag"
+                      title={t('settings.contrastTitle', {
+                        bg: contrast.vsBg.ratio.toFixed(2),
+                        fg: contrast.vsFg.ratio.toFixed(2),
+                      })}
+                    >
+                      {t('settings.lowContrast')}
                     </span>
                   )}
                 </div>
@@ -158,16 +192,16 @@ export function SettingsScreen() {
         </section>
 
         <section className="settings-group">
-          <h3>Opções</h3>
+          <h3>{t('settings.options')}</h3>
           <ToggleRow
-            label="Frontmatter renderizado bonito"
-            hint="tags como pills + datas formatadas, em vez de YAML cru"
+            label={t('settings.frontmatterPretty')}
+            hint={t('settings.frontmatterPrettyHint')}
             checked={settings.frontmatterPretty}
             onChange={(v) => update({ frontmatterPretty: v })}
           />
-          <ToggleRow label="Índice (TOC) por nó" checked={settings.tocEnabled} onChange={(v) => update({ tocEnabled: v })} />
+          <ToggleRow label={t('settings.tocEnabled')} checked={settings.tocEnabled} onChange={(v) => update({ tocEnabled: v })} />
           <ToggleRow
-            label="Recentes + fixados na sidebar"
+            label={t('settings.recentPinned')}
             checked={settings.recentPinnedEnabled}
             onChange={(v) => update({ recentPinnedEnabled: v })}
           />
@@ -192,6 +226,7 @@ export function SettingsScreen() {
  * detection, app/shells.ts) and the free-text field covers the rest. */
 function TerminalSection() {
   const { settings, update } = useSettings();
+  const t = useT();
   const { data: shells } = useApi<TerminalShellsResponse>('/terminal/shells');
   const [shellDraft, setShellDraft] = useState<string | null>(null);
   const [cwdDraft, setCwdDraft] = useState<string | null>(null);
@@ -210,7 +245,7 @@ function TerminalSection() {
   return (
     <section className="settings-group">
       <div className="settings-group-head">
-        <h3>Terminal</h3>
+        <h3>{t('settings.terminal')}</h3>
         <button
           className="btn btn-ghost btn-sm"
           onClick={() => {
@@ -227,12 +262,12 @@ function TerminalSection() {
             });
           }}
         >
-          restaurar padrão
+          {t('common.restoreDefaults')}
         </button>
       </div>
       <ToggleRow
-        label="Habilitar o terminal embutido"
-        hint="desligado por padrão: com ele ligado o app passa a poder abrir um shell nesta máquina. Ctrl+` abre e fecha o painel."
+        label={t('settings.terminalEnabled')}
+        hint={t('settings.terminalEnabledHint')}
         checked={settings.terminalEnabled}
         onChange={(v) => update({ terminalEnabled: v })}
       />
@@ -240,13 +275,16 @@ function TerminalSection() {
         <>
           <div className="settings-row">
             <div>
-              <label>Shell</label>
+              <label>{t('settings.shell')}</label>
               <span className="hint">
-                {shells ? `detectados em ${shells.platform}; deixe em branco pro padrão da máquina` : 'detectando…'}
+                {shells ? t('settings.shellHint', { platform: shells.platform }) : t('settings.shellDetecting')}
               </span>
             </div>
             <select className="text-input" value={shells?.shells.some((s) => s.command === settings.terminalShell) ? settings.terminalShell : ''} onChange={(e) => pickPreset(e.target.value)}>
-              <option value="">padrão da máquina{shells ? ` (${shells.effective.shell})` : ''}</option>
+              <option value="">
+                {t('settings.shellMachineDefault')}
+                {shells ? ` (${shells.effective.shell})` : ''}
+              </option>
               {shells?.shells.map((s) => (
                 <option key={s.command} value={s.command}>
                   {s.label} — {s.command}
@@ -256,8 +294,8 @@ function TerminalSection() {
           </div>
           <div className="settings-row">
             <div>
-              <label>…ou o caminho do executável</label>
-              <span className="hint">pra um shell que não está na lista acima</span>
+              <label>{t('settings.shellPath')}</label>
+              <span className="hint">{t('settings.shellPathHint')}</span>
             </div>
             <input
               className="text-input"
@@ -274,8 +312,11 @@ function TerminalSection() {
           </div>
           <div className="settings-row">
             <div>
-              <label>Diretório inicial</label>
-              <span className="hint">em branco = a pasta do vault ativo{shells ? ` (${shells.effective.cwd})` : ''}</span>
+              <label>{t('settings.cwd')}</label>
+              <span className="hint">
+                {t('settings.cwdHint')}
+                {shells ? ` (${shells.effective.cwd})` : ''}
+              </span>
             </div>
             <input
               className="text-input"
@@ -292,11 +333,9 @@ function TerminalSection() {
           </div>
           <div className="settings-row">
             <div>
-              <label>Modo</label>
+              <label>{t('settings.mode')}</label>
               <span className="hint">
-                {settings.terminalMode === 'command'
-                  ? 'roda só o comando abaixo; sair dele encerra a sessão, sem prompt por baixo'
-                  : 'terminal completo: sair do comando devolve o prompt do shell'}
+                {settings.terminalMode === 'command' ? t('settings.modeCommandHint') : t('settings.modeShellHint')}
               </span>
             </div>
             <select
@@ -304,17 +343,17 @@ function TerminalSection() {
               value={settings.terminalMode}
               onChange={(e) => update({ terminalMode: e.target.value as 'command' | 'shell' })}
             >
-              <option value="command">Só o comando (padrão)</option>
-              <option value="shell">Terminal completo</option>
+              <option value="command">{t('settings.modeCommand')}</option>
+              <option value="shell">{t('settings.modeShell')}</option>
             </select>
           </div>
           <div className="settings-row">
             <div>
-              <label>Comando ao abrir</label>
+              <label>{t('settings.startupCommand')}</label>
               <span className="hint">
                 {settings.terminalMode === 'command'
-                  ? 'o shell é substituído por ele — em branco = shell puro'
-                  : 'digitado no shell assim que ele sobe — em branco = shell puro'}
+                  ? t('settings.startupCommandHintCommand')
+                  : t('settings.startupCommandHintShell')}
               </span>
             </div>
             <input
@@ -331,7 +370,7 @@ function TerminalSection() {
             />
           </div>
           <div className="settings-row">
-            <label>Tamanho da fonte</label>
+            <label>{t('settings.fontSize')}</label>
             <input
               type="range"
               min={10}
@@ -350,6 +389,7 @@ function TerminalSection() {
 
 function BackupSection() {
   const { reload: reloadSettings } = useSettings();
+  const t = useT();
   const bumpAppState = useBumpAppState();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -361,10 +401,10 @@ function BackupSection() {
     try {
       parsed = JSON.parse(await file.text());
     } catch {
-      setMessage({ kind: 'error', text: 'arquivo não é um JSON válido' });
+      setMessage({ kind: 'error', text: t('settings.backupBadJson') });
       return;
     }
-    if (!window.confirm('Importar este backup substitui TODOS os cadernos, tema, cores de tag e fixados atuais. Continuar?')) {
+    if (!window.confirm(t('settings.backupConfirm'))) {
       return;
     }
     setImporting(true);
@@ -372,7 +412,7 @@ function BackupSection() {
       const result = await api.post<{ notebookCount: number }>('/backup/import', parsed);
       await reloadSettings();
       bumpAppState(); // refetches every open '/notebooks' and '/state' call
-      setMessage({ kind: 'ok', text: `backup importado — ${result.notebookCount} caderno(s) restaurado(s)` });
+      setMessage({ kind: 'ok', text: t('settings.backupImported', { count: result.notebookCount }) });
     } catch (err) {
       setMessage({ kind: 'error', text: err instanceof ApiError ? err.message : String(err) });
     } finally {
@@ -382,17 +422,16 @@ function BackupSection() {
 
   return (
     <section className="settings-group">
-      <h3>Backup</h3>
+      <h3>{t('settings.backup')}</h3>
       <span className="hint" style={{ display: 'block', marginBottom: 10 }}>
-        cadernos, tema e cores de tag vivem só nesta máquina — sem repositório, sem nuvem. Exporte de vez em quando pra
-        não perder se reinstalar o app ou trocar de máquina.
+        {t('settings.backupHint')}
       </span>
       <div className="settings-row" style={{ justifyContent: 'flex-start', gap: 10 }}>
         <a className="btn btn-primary" href={api.rawUrl('/backup/export')} download="mindview-backup.json">
-          Exportar backup
+          {t('settings.backupExport')}
         </a>
         <button className="btn btn-ghost" disabled={importing} onClick={() => fileInputRef.current?.click()}>
-          {importing ? 'Importando…' : 'Importar backup'}
+          {importing ? t('settings.backupImporting') : t('settings.backupImport')}
         </button>
         <input
           ref={fileInputRef}
@@ -411,6 +450,8 @@ function BackupSection() {
   );
 }
 
+/** Takes already-translated strings: every call site has a `t` in scope,
+ * and passing keys instead would make the component guess the namespace. */
 function ToggleRow({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className="settings-row">
@@ -425,6 +466,7 @@ function ToggleRow({ label, hint, checked, onChange }: { label: string; hint?: s
 
 function VaultPathSection() {
   const { data: config, refetch } = useApi<ConfigResponse>('/config');
+  const t = useT();
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -444,34 +486,33 @@ function VaultPathSection() {
 
   return (
     <section className="settings-group">
-      <h3>Vault</h3>
+      <h3>{t('settings.vault')}</h3>
       <span className="hint" style={{ display: 'block', marginBottom: 10 }}>
-        caminho absoluto do vault a ler. Sem diálogo nativo do Explorer (isso viria de graça só se um dia embrulhar em
-        Electron) — digite/cole o caminho ou escolha um recente.
+        {t('settings.vaultHint')}
       </span>
       <div className="settings-row">
         <span className="mono" style={{ fontSize: 12.5 }}>
-          atual: {config?.vaultPath ?? '…'}
+          {t('settings.vaultCurrent')} {config?.vaultPath ?? '…'}
         </span>
       </div>
       <div className="settings-row">
         <input
           className="text-input"
           style={{ flex: 1 }}
-          placeholder="/caminho/absoluto/pro/vault"
+          placeholder={t('settings.vaultPlaceholder')}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && value.trim() && apply(value.trim())}
         />
         <button className="btn btn-primary" disabled={!value.trim() || saving} onClick={() => apply(value.trim())}>
-          trocar
+          {t('settings.vaultSwitch')}
         </button>
       </div>
       {error && <div className="error-banner">{error}</div>}
       {config && config.recentVaultPaths.length > 0 && (
         <>
           <div className="sidebar-section-label" style={{ padding: '10px 0 4px' }}>
-            Recentes
+            {t('settings.vaultRecent')}
           </div>
           <div className="quick-list" style={{ padding: 0 }}>
             {config.recentVaultPaths.map((p) => (

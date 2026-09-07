@@ -3,6 +3,7 @@ import type { Notebook } from '../api/types';
 import { navigate } from '../lib/hashRoute';
 import { api } from '../api/client';
 import { NODE_DRAG_MIME } from './Tree';
+import { useT } from '../i18n/useT';
 
 interface NotebookCardProps {
   notebook: Notebook;
@@ -14,6 +15,7 @@ interface NotebookCardProps {
  * skeuomorphic "Ateliê" wood/fabric, closer to Dindin than to Mind). */
 export function NotebookCard({ notebook, onNodeDropped }: NotebookCardProps) {
   const [dropping, setDropping] = useState(false);
+  const t = useT();
 
   return (
     <button
@@ -37,7 +39,7 @@ export function NotebookCard({ notebook, onNodeDropped }: NotebookCardProps) {
     >
       <span className="glyph">{notebook.simbolo}</span>
       <span className="titulo">{notebook.titulo}</span>
-      <span className="count">{notebook.nodes.length} nó{notebook.nodes.length === 1 ? '' : 's'}</span>
+      <span className="count">{t('shelf.nodeCount', { count: notebook.nodes.length })}</span>
     </button>
   );
 }

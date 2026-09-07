@@ -12,6 +12,12 @@ import { TerminalPanel } from './TerminalPanel';
 import { TerminalBar } from './TerminalBar';
 import { useTerminalSessions } from '../lib/terminalSessions';
 import { FALLBACK_SETTINGS } from '../context/SettingsContext';
+import { makeT } from '../i18n';
+
+// Selectors go through the catalogue rather than a literal string, so a
+// re-worded label is a translation change, not a broken test — and a
+// deleted key is a type error here.
+const t = makeT('en');
 
 vi.mock('./TerminalView', () => ({
   TerminalView: ({ active }: { active: boolean }) => <div data-testid="view" data-active={String(active)} />,
@@ -118,7 +124,7 @@ describe('the bar is the collapsed panel', () => {
   it('collapsing brings the bar back and keeps every shell alive', () => {
     render();
     click(q('.terminal-bar-btn'));
-    click(q('.terminal-panel-actions button[aria-label="Recolher o terminal"]'));
+    click(q(`.terminal-panel-actions button[aria-label="${t('terminal.collapse')}"]`));
     expect(panelHidden()).toBe(true);
     expect(barShown()).toBe(true);
     expect(views()).toHaveLength(1); // still mounted: the socket survives
@@ -128,16 +134,16 @@ describe('the bar is the collapsed panel', () => {
   it('lists the running sessions while collapsed, so you can see them without expanding', () => {
     render();
     click(q('.terminal-bar-btn'));
-    click(q('.terminal-panel-actions button[aria-label="Nova sessão de terminal"]'));
-    click(q('.terminal-panel-actions button[aria-label="Recolher o terminal"]'));
+    click(q(`.terminal-panel-actions button[aria-label="${t('terminal.newSessionAria')}"]`));
+    click(q(`.terminal-panel-actions button[aria-label="${t('terminal.collapse')}"]`));
     expect(all('.terminal-bar-tab')).toHaveLength(2);
   });
 
   it('clicking a session in the bar expands straight to it', () => {
     render();
     click(q('.terminal-bar-btn'));
-    click(q('.terminal-panel-actions button[aria-label="Nova sessão de terminal"]'));
-    click(q('.terminal-panel-actions button[aria-label="Recolher o terminal"]'));
+    click(q(`.terminal-panel-actions button[aria-label="${t('terminal.newSessionAria')}"]`));
+    click(q(`.terminal-panel-actions button[aria-label="${t('terminal.collapse')}"]`));
     click(all('.terminal-bar-tab')[0]);
     expect(panelHidden()).toBe(false);
     expect(views().map((v) => v.dataset.active)).toEqual(['true', 'false']);
@@ -148,7 +154,7 @@ describe('sessions', () => {
   it('opens additional sessions and activates the new one', () => {
     render();
     click(q('.terminal-bar-btn'));
-    click(q('.terminal-panel-actions button[aria-label="Nova sessão de terminal"]'));
+    click(q(`.terminal-panel-actions button[aria-label="${t('terminal.newSessionAria')}"]`));
     expect(views()).toHaveLength(2);
     expect(views().map((v) => v.dataset.active)).toEqual(['false', 'true']);
   });
@@ -156,7 +162,7 @@ describe('sessions', () => {
   it('switching tabs tears nothing down — only visibility changes', () => {
     render();
     click(q('.terminal-bar-btn'));
-    click(q('.terminal-panel-actions button[aria-label="Nova sessão de terminal"]'));
+    click(q(`.terminal-panel-actions button[aria-label="${t('terminal.newSessionAria')}"]`));
     click(all('.terminal-tab-label')[0]);
     expect(views()).toHaveLength(2);
     expect(views().map((v) => v.dataset.active)).toEqual(['true', 'false']);
@@ -165,7 +171,7 @@ describe('sessions', () => {
   it('closing a tab unmounts that session — this is what kills its shell', () => {
     render();
     click(q('.terminal-bar-btn'));
-    click(q('.terminal-panel-actions button[aria-label="Nova sessão de terminal"]'));
+    click(q(`.terminal-panel-actions button[aria-label="${t('terminal.newSessionAria')}"]`));
     click(all('.terminal-tab-close')[1]);
     expect(views()).toHaveLength(1);
   });
@@ -175,7 +181,7 @@ describe('sessions', () => {
     // dark, empty panel on screen.
     render();
     click(q('.terminal-bar-btn'));
-    click(q('.terminal-panel-actions button[aria-label="Encerrar todas as sessões"]'));
+    click(q(`.terminal-panel-actions button[aria-label="${t('terminal.endAll')}"]`));
     expect(views()).toHaveLength(0);
     expect(panelHidden()).toBe(true);
     expect(barShown()).toBe(true);
@@ -187,7 +193,7 @@ describe('discoverability', () => {
   it('points at the setting when the terminal is switched off', () => {
     render(false);
     const btn = q('.terminal-bar-btn');
-    expect(btn?.textContent).toContain('Ajustes');
+    expect(btn?.textContent).toContain(t('nav.settings'));
     click(btn);
     expect(navigate).toHaveBeenCalledWith('ajustes');
   });

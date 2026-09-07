@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api/client';
 import type { Notebook } from '../api/types';
+import { useT } from '../i18n/useT';
 
 const GLYPHS = ['◆', '●', '■', '▲', '◈', '☰', '⌘', '✦', '⬢', '◐', '☾', 'λ', '∞', '§', '†', '⚙'];
 const COLORS = ['#5b9eea', '#f0655c', '#e0913a', '#a78bfa', '#e685b5', '#45b8c4', '#8a7226', '#3fb950'];
@@ -16,6 +17,7 @@ export function NewNotebookModal({ open, onClose, onCreated }: NewNotebookModalP
   const [simbolo, setSimbolo] = useState(GLYPHS[0]);
   const [cor, setCor] = useState(COLORS[0]);
   const [saving, setSaving] = useState(false);
+  const t = useT();
 
   if (!open) return null;
 
@@ -36,12 +38,12 @@ export function NewNotebookModal({ open, onClose, onCreated }: NewNotebookModalP
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-panel" onClick={(e) => e.stopPropagation()} style={{ padding: 20 }}>
         <h3 style={{ marginBottom: 14, fontFamily: 'var(--font-mono)', fontSize: 13, textTransform: 'uppercase', color: 'var(--subtle)' }}>
-          Novo caderno
+          {t('shelf.newNotebook')}
         </h3>
         <input
           className="text-input"
           style={{ width: '100%', marginBottom: 14 }}
-          placeholder="título"
+          placeholder={t('shelf.titlePlaceholder')}
           value={titulo}
           autoFocus
           onChange={(e) => setTitulo(e.target.value)}
@@ -76,10 +78,10 @@ export function NewNotebookModal({ open, onClose, onCreated }: NewNotebookModalP
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button className="btn btn-ghost" onClick={onClose}>
-            cancelar
+            {t('common.cancel')}
           </button>
           <button className="btn btn-primary" disabled={!titulo.trim() || saving} onClick={submit}>
-            criar
+            {t('common.create')}
           </button>
         </div>
       </div>

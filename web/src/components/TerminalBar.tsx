@@ -1,5 +1,6 @@
 import { navigate } from '../lib/hashRoute';
 import type { TerminalSessions } from '../lib/terminalSessions';
+import { useT } from '../i18n/useT';
 
 interface Props {
   enabled: boolean;
@@ -20,11 +21,12 @@ interface Props {
  * capability — the socket still refuses every connection.
  */
 export function TerminalBar({ enabled, sessions, onExpand }: Props) {
+  const t = useT();
   if (!enabled) {
     return (
       <footer className="terminal-bar">
         <button className="terminal-bar-btn is-off" onClick={() => navigate('ajustes')}>
-          terminal desligado — habilitar nos Ajustes
+          {t('terminal.disabled')}
         </button>
       </footer>
     );
@@ -32,16 +34,21 @@ export function TerminalBar({ enabled, sessions, onExpand }: Props) {
 
   return (
     <footer className="terminal-bar">
-      <button className="terminal-bar-btn" onClick={() => onExpand()} aria-label="Expandir o terminal" title="Expandir o terminal">
+      <button className="terminal-bar-btn" onClick={() => onExpand()} aria-label={t('terminal.expand')} title={t('terminal.expand')}>
         <span className="terminal-bar-caret" aria-hidden="true">
           ‹
         </span>
-        terminal
+        {t('terminal.short')}
       </button>
       {sessions.tabs.map((tab, i) => (
-        <button key={tab.id} className="terminal-bar-tab mono" onClick={() => onExpand(tab.id)} title={tab.detail || `terminal ${i + 1}`}>
+        <button
+          key={tab.id}
+          className="terminal-bar-tab mono"
+          onClick={() => onExpand(tab.id)}
+          title={tab.detail || t('terminal.tab', { n: i + 1 })}
+        >
           <span className={`terminal-tab-dot is-${tab.status}`} aria-hidden="true" />
-          terminal {i + 1}
+          {t('terminal.tab', { n: i + 1 })}
         </button>
       ))}
       <span className="terminal-bar-hint mono">Ctrl+`</span>

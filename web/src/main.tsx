@@ -5,19 +5,22 @@ import { ReindexProvider } from './context/ReindexContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { AppStateEventsProvider } from './context/AppStateEvents';
 import { hasToken } from './api/client';
+import { detectLocale, makeT } from './i18n';
 import './styles/global.css';
 
 const root = createRoot(document.getElementById('root')!);
 
 if (!hasToken()) {
+  // Rendered before <SettingsProvider> exists, so there is no stored
+  // language preference to read yet — the browser's own is all there is.
+  const t = makeT(detectLocale());
   root.render(
     <div style={{ padding: 40, fontFamily: 'monospace', color: '#f0655c' }}>
-      <h1>MindView — token ausente</h1>
+      <h1>{t('app.tokenMissingTitle')}</h1>
       <p>
-        Não recebi o token de sessão do servidor. Confirme que <code>npm run dev -w server</code> está rodando e recarregue
-        esta página.
+        {t('app.tokenMissingBefore')} <code>npm run dev -w server</code> {t('app.tokenMissingAfter')}
       </p>
-      <button onClick={() => location.reload()}>Recarregar</button>
+      <button onClick={() => location.reload()}>{t('app.reload')}</button>
     </div>,
   );
 } else {

@@ -11,11 +11,13 @@ import { NodeToolbar } from '../components/NodeToolbar';
 import { useSettings } from '../context/SettingsContext';
 import { useBumpAppState } from '../context/AppStateEvents';
 import { loadTocCollapsed, saveTocCollapsed } from '../lib/tocCollapsed';
+import { useT } from '../i18n/useT';
 
 export function Reader({ path }: { path: string | null }) {
   const { data, loading, error } = useApi<NodeResponse>(path ? `/node?path=${encodeURIComponent(path)}` : null);
   const { data: state } = useApi<AppState>('/state');
   const { settings } = useSettings();
+  const t = useT();
   const bump = useBumpAppState();
 
   const [tocCollapsed, setTocCollapsed] = useState(loadTocCollapsed);
@@ -50,8 +52,8 @@ export function Reader({ path }: { path: string | null }) {
   if (!path) {
     return (
       <div className="reader-screen">
-        <TerminalChrome path="~/mind" />
-        <div className="reader-empty">Escolha um nó na árvore à esquerda, ou Ctrl+K pra buscar.</div>
+        <TerminalChrome path={t('chrome.root')} />
+        <div className="reader-empty">{t('reader.empty')}</div>
       </div>
     );
   }
@@ -62,7 +64,7 @@ export function Reader({ path }: { path: string | null }) {
 
   return (
     <div className="reader-screen">
-      <TerminalChrome path={`~/mind/${path}`} />
+      <TerminalChrome path={`${t('chrome.root')}/${path}`} />
       <div className="reader-layout">
         <div className="reader-article-col">
           {/* !data guard: bumpedForPath above still causes one background
@@ -70,7 +72,7 @@ export function Reader({ path }: { path: string | null }) {
               appStateVersion bump is also a useApi dependency for this
               fetch) — without the guard, "Carregando…" would flash on top
               of content that's already on screen. */}
-          {loading && !data && <p style={{ color: 'var(--subtle)' }}>Carregando…</p>}
+          {loading && !data && <p style={{ color: 'var(--subtle)' }}>{t('common.loading')}</p>}
           {error && <div className="error-banner">{error}</div>}
           {data && (
             <div style={{ maxWidth: 'var(--read-col)', width: '100%' }}>
@@ -93,8 +95,8 @@ export function Reader({ path }: { path: string | null }) {
         {data && tocAvailable && !tocCollapsed && (
           <div className="reader-rail">
             <div className="reader-rail-head">
-              <span className="sidebar-section-label">Índice</span>
-              <button className="icon-btn" title="Ocultar índice" onClick={toggleToc}>
+              <span className="sidebar-section-label">{t('reader.toc')}</span>
+              <button className="icon-btn" title={t('reader.hideToc')} onClick={toggleToc}>
                 ›
               </button>
             </div>

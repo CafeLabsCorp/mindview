@@ -636,3 +636,37 @@ kept small.
 **Cost control on the client.** `@xterm/xterm` is ~250 KB and the terminal
 ships disabled, so `TerminalPanel` is `React.lazy()`-ed into its own chunk:
 a session that never opens the panel never downloads it.
+
+## 13. Two languages, without next-intl
+
+The UI ships in English and Portuguese. The other repos here (mind-landing,
+dindin-landing, domo-landing, cafelabs-portifolio) are Next.js apps using
+next-intl with `messages/en.json` + `messages/pt.json` and a `[locale]`
+route segment. MindView is a Vite SPA behind a hash router: there is no
+route segment to hang a locale on, and next-intl is bound to Next.
+
+So this keeps the half that carries the consistency — the catalogue files,
+same location, same namespaced shape — and replaces the half that does not
+transplant with ~90 lines in `web/src/i18n/`: a dotted-key lookup, `{name}`
+interpolation, and `{one, other}` plural entries. No dependency was added,
+which matches how the rest of this codebase handles small, well-understood
+problems (`hashRoute`, `graphPanelState`, `tagPalette`).
+
+- **English is the base language**, as in every other repo here. `en.json`
+  is the file that must have every key; anything missing from `pt.json`
+  falls back to it rather than rendering a raw key at the user. A test
+  asserts the two catalogues carry the same keys *and* the same
+  placeholders, so a `{count}` present in one language and absent in the
+  other fails before anyone sees it.
+- **The preference lives in `settings.yaml`**, next to `theme`, not in
+  `localStorage`. It is a real preference, not per-browser UI state — the
+  same test `theme` passes, and it has the same three states: `en`, `pt`,
+  or `auto`, which reads `navigator.languages`. Only the primary subtag
+  matters, so pt-BR and pt-PT are both `pt`.
+- **The vault is never translated.** Node titles, tags, headings and paths
+  are the user's own words; only the chrome around them changes. Dates
+  follow the resolved locale (`toLocaleDateString`) because a date is
+  formatting, not content.
+- **Tests select through the catalogue**, never by a literal label
+  (`t('terminal.collapse')`, not `"Recolher o terminal"`), so re-wording a
+  string stays a translation change instead of a broken test.

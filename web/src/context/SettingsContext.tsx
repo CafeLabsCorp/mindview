@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api } from '../api/client';
 import type { Settings } from '../api/types';
+import { resolveLocale } from '../i18n';
 
 export const FALLBACK_SETTINGS: Settings = {
   accent: '#3fb950',
   theme: 'dark',
+  language: 'auto',
   linkColorOverride: null,
   bodyFont: "'Inter',system-ui,sans-serif",
   readSize: 15.5,
@@ -39,6 +41,12 @@ function applyThemeToDom(theme: Settings['theme']): void {
   const root = document.documentElement;
   if (theme === 'system') delete root.dataset.theme;
   else root.dataset.theme = theme;
+}
+
+function applyLanguageToDom(pref: Settings['language']): void {
+  // Screen readers and the browser's own spell-check/hyphenation read this,
+  // and it is the only place the resolved locale is visible outside React.
+  document.documentElement.lang = resolveLocale(pref);
 }
 
 function applyTokensToDom(settings: Settings): void {
@@ -76,6 +84,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     applyThemeToDom(settings.theme);
+    applyLanguageToDom(settings.language);
     applyTokensToDom(settings);
   }, [settings]);
 

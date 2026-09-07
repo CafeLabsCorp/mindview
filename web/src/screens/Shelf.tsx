@@ -8,10 +8,12 @@ import { NewNotebookModal } from '../components/NewNotebookModal';
 import { navigate } from '../lib/hashRoute';
 import { useTree } from '../context/TreeContext';
 import { NODE_DRAG_MIME } from '../components/Tree';
+import { useT } from '../i18n/useT';
 
 export function Shelf({ notebookKey }: { notebookKey: string | null }) {
   const { data: notebooks, loading, error, refetch } = useApi<Notebook[]>('/notebooks');
   const [showNew, setShowNew] = useState(false);
+  const t = useT();
 
   if (notebookKey) {
     return <NotebookView notebookKey={notebookKey} onBack={() => navigate('estante')} />;
@@ -19,14 +21,14 @@ export function Shelf({ notebookKey }: { notebookKey: string | null }) {
 
   return (
     <>
-      <TerminalChrome path="~/mind/estante" />
+      <TerminalChrome path={t('chrome.shelf')} />
       <div className="shelf-grid">
-        {loading && <p style={{ color: 'var(--subtle)' }}>Carregando…</p>}
+        {loading && <p style={{ color: 'var(--subtle)' }}>{t('common.loading')}</p>}
         {error && <div className="error-banner">{error}</div>}
         {notebooks?.map((nb) => (
           <NotebookCard key={nb.key} notebook={nb} onNodeDropped={refetch} />
         ))}
-        <button className="new-notebook-card" onClick={() => setShowNew(true)} title="Novo caderno">
+        <button className="new-notebook-card" onClick={() => setShowNew(true)} title={t('shelf.newNotebook')}>
           +
         </button>
       </div>
@@ -39,11 +41,12 @@ function NotebookView({ notebookKey, onBack }: { notebookKey: string; onBack: ()
   const { data: nb, error, refetch } = useApi<Notebook>(`/notebooks/${encodeURIComponent(notebookKey)}`);
   const { pathSet } = useTree();
   const [dropping, setDropping] = useState(false);
+  const t = useT();
 
   if (error) {
     return (
       <div className="notebook-view">
-        <TerminalChrome path="~/mind/estante" />
+        <TerminalChrome path={t('chrome.shelf')} />
         <div className="error-banner">{error}</div>
       </div>
     );
@@ -66,10 +69,10 @@ function NotebookView({ notebookKey, onBack }: { notebookKey: string; onBack: ()
   return (
     <div className="notebook-view">
       <TerminalChrome
-        path={`~/mind/estante/${nb.titulo}`}
+        path={`${t('chrome.shelf')}/${nb.titulo}`}
         actions={
           <button className="btn btn-ghost" onClick={onBack}>
-            ← estante
+            {t('shelf.back')}
           </button>
         }
       />
@@ -95,10 +98,10 @@ function NotebookView({ notebookKey, onBack }: { notebookKey: string; onBack: ()
             <div key={ref.path} className={`node-card${missing ? ' is-missing' : ''}`} onClick={() => !missing && navigate('read', ref.path)}>
               <button
                 className="node-card-remove"
-                title="Remover do caderno"
+                title={t('shelf.removeFromNotebook')}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (window.confirm(`Remover "${ref.titleAtIndex}" deste caderno? O nó em si não é afetado.`)) removeNode(ref.path);
+                  if (window.confirm(t('shelf.removeConfirm', { title: ref.titleAtIndex }))) removeNode(ref.path);
                 }}
               >
                 ✕
@@ -110,7 +113,7 @@ function NotebookView({ notebookKey, onBack }: { notebookKey: string; onBack: ()
         })}
         {nb.nodes.length === 0 && (
           <p style={{ color: 'var(--subtle)', fontFamily: 'var(--font-mono)', fontSize: 12.5, gridColumn: '1 / -1' }}>
-            arraste nós da árvore (à esquerda) pra qualquer lugar aqui pra adicionar ao caderno.
+            {t('shelf.dropHint')}
           </p>
         )}
       </div>

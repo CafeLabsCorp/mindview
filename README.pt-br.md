@@ -217,12 +217,15 @@ Quatro abas na sidebar (nenhuma é "a tela principal") mais o Leitor, que não
    verdade, toggle de frontmatter bonito, toggle de TOC, toggle de
    recentes/fixados, e o trocador de caminho do vault. "Restaurar padrão"
    reseta uma seção inteira (Aparência, Tipografia) de uma vez.
-5. **Terminal** — também não é aba da sidebar: uma doca no rodapé da janela,
-   no formato do VS Code, aberta pela barra sempre visível logo abaixo dela
-   ou com `Ctrl+`` `, redimensionável arrastando a borda de cima, e
-   persistida por navegador. Várias sessões vivem em abas (`+` abre uma
-   nova, `✕` encerra); `—` minimiza a doca **sem** matar nada, que é toda a
-   diferença entre minimizar e encerrar. **Desligado por
+5. **Terminal** — também não é aba da sidebar: uma doca no rodapé da janela
+   cuja *forma recolhida é a barra logo abaixo dela*, não um controle
+   separado pra ela. Recolhida, a barra lista as sessões em execução com
+   seus pontinhos de estado, então dá pra ver o que está vivo sem
+   expandir, e clicar numa abre direto nela. Expandida, as abas migram pro
+   cabeçalho do painel e a barra sai de cena, com três ações agrupadas à
+   direita: `+` nova sessão, `›` recolher, `✕` encerrar todas. Recolher não
+   mata nada; o `✕` de uma aba é a única coisa que encerra um shell.
+   `Ctrl+`` ` alterna, e a altura é arrastada e persistida por navegador. **Desligado por
    padrão** — precisa ser habilitado nos Ajustes, porque um app web local
    capaz de abrir um shell é uma superfície bem diferente de um leitor
    read-only. O shell, o diretório inicial e o comando digitado ao abrir são

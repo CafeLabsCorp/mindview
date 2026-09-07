@@ -597,6 +597,25 @@ socket still refuses every connection. The lesson generalises: *off by
 default* and *invisible* are different decisions, and only the first one
 was intended.
 
+**The bar is the collapsed panel, not a second control for it.** Shipping
+both a bar *and* a panel header that toggled the same thing read as
+confusing, and left the collapse button stranded alone on the right. They
+are now one thing in two states: collapsed, the bar carries the session
+list (with state dots, so a shell that died in the background is visible
+without expanding) and clicking a session expands into it; expanded, the
+bar steps aside and the tabs live in the panel header, with `+` / `›` / `✕`
+as one group. Only one of the two is ever on screen.
+
+**A note on `[hidden]`.** Collapsing originally left a dark, empty panel
+behind, because `.terminal-panel` sets `display: flex` and *any* author
+rule outranks the browser's own `[hidden] { display: none }`, which lives
+in the UA stylesheet. The child views hid correctly only because they had
+no `display` rule of their own. This is the same shape as the graph's label
+bug (a CSS rule beating an SVG presentation attribute): two mechanisms
+fighting over one property, with the quieter one losing. Fixed globally
+rather than on that one selector — `global.css` now declares
+`[hidden] { display: none !important }`, so the attribute always wins.
+
 **Minimising is not ending.** A session's shell dies when its `TerminalView`
 unmounts — the cleanup closes the socket and the server kills the PTY on
 `close`. That single fact defines the whole panel: minimising keeps every

@@ -629,6 +629,26 @@ concede capacidade nenhuma, já que o socket continua recusando toda
 conexão. A lição generaliza: *desligado por padrão* e *invisível* são
 decisões diferentes, e só a primeira era a intenção.
 
+**A barra é o painel recolhido, não um segundo controle pra ele.** Ter uma
+barra *e* um cabeçalho de painel que alternavam a mesma coisa lia como
+confusão, e deixava o botão de recolher sozinho na direita. Agora são uma
+coisa só em dois estados: recolhida, a barra carrega a lista de sessões
+(com os pontinhos de estado, então um shell que morreu em segundo plano
+aparece sem precisar expandir) e clicar numa sessão expande dentro dela;
+expandida, a barra sai de cena e as abas ficam no cabeçalho do painel, com
+`+` / `›` / `✕` como um grupo. Só um dos dois está em tela por vez.
+
+**Uma nota sobre `[hidden]`.** Recolher originalmente deixava pra trás um
+painel escuro e vazio, porque `.terminal-panel` define `display: flex` e
+*qualquer* regra do autor supera o `[hidden] { display: none }` do próprio
+navegador, que vive na UA stylesheet. As views filhas escondiam certo só
+porque não tinham regra de `display` própria. É o mesmo formato do bug do
+rótulo do grafo (uma regra CSS ganhando de um atributo de apresentação
+SVG): dois mecanismos disputando uma propriedade, e o mais silencioso
+perde. Corrigido globalmente em vez de naquele seletor — o `global.css`
+agora declara `[hidden] { display: none !important }`, então o atributo
+sempre ganha.
+
 **Minimizar não é encerrar.** O shell de uma sessão morre quando o
 `TerminalView` dela desmonta — o cleanup fecha o socket e o server mata o
 PTY no `close`. Esse fato sozinho define o painel inteiro: minimizar mantém

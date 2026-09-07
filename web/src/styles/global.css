@@ -121,6 +121,19 @@ input:focus-visible,
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Slides out on a negative margin rather than a shrinking width: the
+     column keeps its 260px, so nothing inside it reflows on the way out. */
+  transition: margin-left 0.24s ease, opacity 0.2s ease, visibility 0s;
+}
+/* Not the [hidden] attribute: that is display:none, which cannot animate.
+   visibility flips only once the slide has finished (and instantly on the
+   way back in), which is what keeps the hidden column out of the tab order
+   and the accessibility tree. */
+.sidebar.is-hidden {
+  margin-left: -260px;
+  opacity: 0;
+  visibility: hidden;
+  transition: margin-left 0.24s ease, opacity 0.2s ease, visibility 0s linear 0.24s;
 }
 
 .sidebar-brand {
@@ -312,9 +325,9 @@ input:focus-visible,
 }
 .tree-row .caret {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--subtle);
-  width: 10px;
+  width: 12px;
   display: inline-block;
   transition: transform 0.15s ease;
 }
@@ -1260,12 +1273,20 @@ input[type='color']::-moz-color-swatch {
 .gc-caret {
   display: inline-block;
   transition: transform 0.2s ease;
-  font-size: 9px;
+  font-size: 11px;
 }
 .gc-caret.is-open {
   transform: rotate(90deg);
 }
-.gc-section-inner {
+/* The padding lives here, one level below .gc-section-inner, and that
+   nesting is the whole point. A 0fr row is floored by the grid item's
+   automatic minimum size; `overflow: hidden` + `min-height: 0` on the item
+   take its *content* down to zero, but its own padding is not part of what
+   that zeroes — so with the padding on the item, a closed section still
+   stood 16px tall. Invisible at opacity 0, it went on swallowing the click
+   meant for the next section's title and toggling its first control.
+   Padding on a child instead: the item measures 0, and clips the child. */
+.gc-section-pad {
   display: flex;
   flex-direction: column;
   gap: 9px;
@@ -1301,13 +1322,19 @@ input[type='color']::-moz-color-swatch {
   padding-left: 22px;
   transition: opacity 0.15s ease;
 }
-/* a control that only means something while its parent toggle is on */
+/* sub-text under a control: indented so it reads as belonging to it */
 .gc-sub {
   padding-left: 22px;
   transition: opacity 0.15s ease;
 }
+/* a control that only means something while another toggle is on: dimmed,
+   but flush with its siblings — indenting it just broke the column */
+.gc-dep {
+  transition: opacity 0.15s ease;
+}
 .gc-chips[data-off],
-.gc-sub[data-off] {
+.gc-sub[data-off],
+.gc-dep[data-off] {
   opacity: 0.4;
   pointer-events: none;
 }
@@ -1452,6 +1479,8 @@ input[type='color']::-moz-color-swatch {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar-rail,
   .gc-body,
   .gc-section-body,
   .graph-node-label,
@@ -1829,6 +1858,7 @@ input[type='color']::-moz-color-swatch {
 .sidebar-rail {
   flex-shrink: 0;
   width: 24px;
+  overflow: hidden;
   background: var(--surface);
   border-right: 1px solid var(--border);
   border-top: 0;
@@ -1843,6 +1873,22 @@ input[type='color']::-moz-color-swatch {
   align-items: flex-start;
   justify-content: center;
   padding: 21px 0 0;
+}
+
+/* Always mounted, and its 24px grows in the same beat as the sidebar's
+   260px leaving — mounting it outright would jolt the main column sideways
+   at the start of the slide. */
+.sidebar-rail {
+  transition: width 0.24s ease, opacity 0.2s ease, visibility 0s;
+}
+.sidebar-rail.is-hidden {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: width 0.24s ease, opacity 0.2s ease, visibility 0s linear 0.24s;
 }
 
 .sidebar-rail:hover {

@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Settings, VaultGraph } from '../api/types';
 import { DEFAULT_GRAPH_PREFS } from '../lib/graphPrefs';
 import { FALLBACK_SETTINGS } from '../context/SettingsContext';
+import { makeT } from '../i18n';
+
+// Same reason as TerminalPanel.test.tsx: look the label up, do not retype it.
+const t = makeT('en');
 
 // --- fixtures --------------------------------------------------------------
 const GRAPH: VaultGraph = {
@@ -123,7 +127,7 @@ describe('GraphScreen', () => {
       [...container.querySelectorAll('.graph-node-label')].map((n) => n.textContent ?? '').filter((t) => t.startsWith('#'));
     expect(tagLabels().length).toBeGreaterThan(0); // tags are nodes by default
 
-    const toggle = [...container.querySelectorAll('.gc-check')].find((l) => l.textContent?.includes('tags como nós'));
+    const toggle = [...container.querySelectorAll('.gc-check')].find((l) => l.textContent?.includes(t('graph.tagsAsNodes')));
     const box = toggle?.querySelector('input') as HTMLInputElement;
     await act(async () => {
       box.click();
@@ -147,12 +151,12 @@ describe('GraphScreen', () => {
   it('lists the panels in the Aparência → Filtros → Grupos order', async () => {
     await renderGraph();
     const heads = [...container.querySelectorAll('.gc-section-head')].map((b) => b.textContent?.replace('▸', '').trim());
-    expect(heads).toEqual(['Aparência', 'Filtros', 'Grupos']);
+    expect(heads).toEqual([t('graph.appearance'), t('graph.filters'), t('graph.groups')]);
   });
 
   it('"Restaurar padrão" puts every graph pref back to its default', async () => {
     await renderGraph();
-    const toggle = [...container.querySelectorAll('.gc-check')].find((l) => l.textContent?.includes('órfãos'));
+    const toggle = [...container.querySelectorAll('.gc-check')].find((l) => l.textContent?.includes(t('graph.orphans')));
     const box = toggle?.querySelector('input') as HTMLInputElement;
     await act(async () => {
       box.click();
@@ -204,7 +208,7 @@ describe('GraphScreen', () => {
     expect(before).toBeGreaterThan(3);
 
     const restart = [...container.querySelectorAll('.graph-toolbar button')].find(
-      (b) => b.getAttribute('title') === 'reiniciar simulação',
+      (b) => b.getAttribute('title') === t('graph.restartSim'),
     ) as HTMLButtonElement;
     expect(restart).toBeDefined();
 
@@ -229,7 +233,7 @@ describe('GraphScreen', () => {
     const drawn = () => container.querySelectorAll('.graph-node').length;
     const before = drawn();
     const restart = [...container.querySelectorAll('.graph-toolbar button')].find(
-      (b) => b.getAttribute('title') === 'reiniciar simulação',
+      (b) => b.getAttribute('title') === t('graph.restartSim'),
     ) as HTMLButtonElement;
     await act(async () => {
       restart.click();

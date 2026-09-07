@@ -1,5 +1,13 @@
 import { useId, useState } from 'react';
 import type { GraphGroup, GraphPrefs } from '../lib/graphPrefs';
+import { useT } from '../i18n/useT';
+import type { MessageKey } from '../i18n';
+import {
+  loadPanelCollapsed,
+  loadSectionOpen,
+  savePanelCollapsed,
+  saveSectionOpen,
+} from '../lib/graphPanelState';
 
 const GROUP_SWATCHES = ['#e06c75', '#d19a66', '#61afef', '#c678dd', '#56b6c2', '#e5c07b'];
 
@@ -11,16 +19,37 @@ interface Props {
   edgeCount: number;
 }
 
-function Section({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen);
+/* `id` is what the open/closed state is filed under, kept separate from the
+   title so renaming a section does not silently reset it. `defaultOpen` only
+   applies until the user touches the section for the first time. */
+function Section({
+  id,
+  title,
+  defaultOpen = true,
+  children,
+}: {
+  id: string;
+  title: MessageKey;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(() => loadSectionOpen(id, defaultOpen));
+  const toggle = () =>
+    setOpen((o) => {
+      saveSectionOpen(id, !o);
+      return !o;
+    });
   return (
     <div className="gc-section">
-      <button className="gc-section-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+      <button className="gc-section-head" onClick={toggle} aria-expanded={open}>
         <span className={`gc-caret${open ? ' is-open' : ''}`}>▸</span>
-        {title}
+        {t(title)}
       </button>
       <div className="gc-section-body" data-open={open || undefined}>
-        <div className="gc-section-inner">{children}</div>
+        <div className="gc-section-inner">
+          <div className="gc-section-pad">{children}</div>
+        </div>
       </div>
     </div>
   );
@@ -64,7 +93,13 @@ function Slider({
 }
 
 export function GraphControls({ prefs, setPref, onReset, nodeCount, edgeCount }: Props) {
-  const [collapsed, setCollapsed] = useState(false);
+  const t = useT();
+  const [collapsed, setCollapsed] = useState(loadPanelCollapsed);
+  const toggleCollapsed = () =>
+    setCollapsed((c) => {
+      savePanelCollapsed(!c);
+      return !c;
+    });
 
   const setGroup = (id: string, patch: Partial<GraphGroup>) =>
     setPref(
@@ -86,29 +121,25 @@ export function GraphControls({ prefs, setPref, onReset, nodeCount, edgeCount }:
     <div className={`graph-controls${collapsed ? ' is-collapsed' : ''}`}>
       {/* the whole bar toggles, not just the caret — same affordance as the
           section heads below */}
-      <button className="gc-head" onClick={() => setCollapsed((c) => !c)} aria-expanded={!collapsed}>
-        <span className="gc-title">grafo</span>
-        <span className="gc-count">
-          {nodeCount} nós · {edgeCount} arestas
-        </span>
+      <button className="gc-head" onClick={toggleCollapsed} aria-expanded={!collapsed}>
+        <span className="gc-title">{t('graph.title')}</span>
+        <span className="gc-count">{t('graph.counts', { nodes: nodeCount, edges: edgeCount })}</span>
         <span className={`gc-caret${collapsed ? '' : ' is-open'}`}>▸</span>
       </button>
 
       <div className="gc-body" data-open={!collapsed || undefined}>
         <div className="gc-body-inner">
-          <Section title="Aparência">
+          <Section id="aparencia" title="graph.appearance">
             <label className="gc-check">
               <input
                 type="checkbox"
                 checked={prefs.colorEnabled}
                 onChange={(e) => setPref('colorEnabled', e.target.checked)}
               />
-              cor por tag
+              {t('graph.colorByTag')}
             </label>
             <p className="gc-hint gc-sub">
-              {prefs.colorEnabled
-                ? 'cada nó pega a cor da primeira tag dele (mapa do Ajustes)'
-                : 'nós no accent do Mind, tags em branco'}
+              {prefs.colorEnabled ? t('graph.colorOnHint') : t('graph.colorOffHint')}
             </p>
             <label className="gc-check">
               <input
@@ -116,14 +147,14 @@ export function GraphControls({ prefs, setPref, onReset, nodeCount, edgeCount }:
                 checked={prefs.sizeByBacklinks}
                 onChange={(e) => setPref('sizeByBacklinks', e.target.checked)}
               />
-              tamanho por backlinks
+              {t('graph.sizeByBacklinks')}
             </label>
             <label className="gc-check">
               <input type="checkbox" checked={prefs.arrows} onChange={(e) => setPref('arrows', e.target.checked)} />
-              setas nas arestas
+              {t('graph.arrows')}
             </label>
             <Slider
-              label="tamanho dos nós"
+              label={t('graph.nodeSize')}
               value={prefs.nodeSizeMul}
               min={0.5}
               max={2.2}
@@ -131,9 +162,11 @@ export function GraphControls({ prefs, setPref, onReset, nodeCount, edgeCount }:
               onChange={(v) => setPref('nodeSizeMul', v)}
               format={(v) => `${v.toFixed(1)}×`}
             />
-            <div className="gc-sub" data-off={!prefs.showTags || undefined}>
+            {/* depends on "tags como nós", so it dims when that is off — but it
+                stays flush with the sliders above and below it, not indented */}
+            <div className="gc-dep" data-off={!prefs.showTags || undefined}>
               <Slider
-                label="tamanho das tags"
+                label={t('graph.tagSize')}
                 value={prefs.tagNodeSize}
                 min={2}
                 max={12}
@@ -143,7 +176,7 @@ export function GraphControls({ prefs, setPref, onReset, nodeCount, edgeCount }:
               />
             </div>
             <Slider
-              label="espessura das linhas"
+              label={t('graph.linkThickness')}
               value={prefs.linkThickness}
               min={0.4}
               max={3}
@@ -152,41 +185,44 @@ export function GraphControls({ prefs, setPref, onReset, nodeCount, edgeCount }:
               format={(v) => `${v.toFixed(1)}×`}
             />
             <Slider
-              label="limiar de rótulo"
+              label={t('graph.labelThreshold')}
               value={prefs.textFadeThreshold}
               min={0}
               max={1}
               step={0.05}
               onChange={(v) => setPref('textFadeThreshold', v)}
-              format={(v) => (v === 0 ? 'sempre' : `${Math.round(v * 100)}%`)}
+              format={(v) => (v === 0 ? t('graph.labelAlways') : `${Math.round(v * 100)}%`)}
             />
             <Slider
-              label="↻ tempo entre nós"
+              label={t('graph.revealStep')}
               value={prefs.revealStepMs}
               min={0}
               max={150}
               step={5}
               onChange={(v) => setPref('revealStepMs', v)}
-              format={(v) => (v === 0 ? 'de uma vez' : `${v} ms`)}
+              format={(v) => (v === 0 ? t('graph.revealAtOnce') : t('graph.revealMs', { value: v }))}
             />
             <p className="gc-hint gc-sub">
               {prefs.revealStepMs === 0
-                ? 'o grafo volta inteiro de uma vez'
-                : `${nodeCount} nós ≈ ${((nodeCount * prefs.revealStepMs) / 1000).toFixed(1)}s pra reconstruir`}
+                ? t('graph.revealHintAtOnce')
+                : t('graph.revealHintStaged', {
+                    nodes: nodeCount,
+                    seconds: ((nodeCount * prefs.revealStepMs) / 1000).toFixed(1),
+                  })}
             </p>
           </Section>
 
-          <Section title="Filtros">
+          <Section id="filtros" title="graph.filters">
             <input
               className="gc-search"
               type="search"
-              placeholder="buscar arquivos…  (tag:, path:)"
+              placeholder={t('graph.searchPlaceholder')}
               value={prefs.search}
               onChange={(e) => setPref('search', e.target.value)}
             />
             <label className="gc-check">
               <input type="checkbox" checked={prefs.showTags} onChange={(e) => setPref('showTags', e.target.checked)} />
-              tags como nós
+              {t('graph.tagsAsNodes')}
             </label>
             <label className="gc-check">
               <input
@@ -194,14 +230,14 @@ export function GraphControls({ prefs, setPref, onReset, nodeCount, edgeCount }:
                 checked={prefs.showOrphans}
                 onChange={(e) => setPref('showOrphans', e.target.checked)}
               />
-              órfãos
+              {t('graph.orphans')}
             </label>
           </Section>
 
-          <Section title="Grupos" defaultOpen={false}>
+          <Section id="grupos" title="graph.groups" defaultOpen={false}>
             {prefs.groups.length === 0 && (
               <p className="gc-hint">
-                Cor por termo de busca. Ex.: <code>tag:cafelabs</code>
+                {t('graph.groupsHint')} <code>tag:cafelabs</code>
               </p>
             )}
             {prefs.groups.map((g) => (
@@ -210,27 +246,27 @@ export function GraphControls({ prefs, setPref, onReset, nodeCount, edgeCount }:
                   type="color"
                   value={g.color}
                   onChange={(e) => setGroup(g.id, { color: e.target.value })}
-                  aria-label="cor do grupo"
+                  aria-label={t('graph.groupColor')}
                 />
                 <input
                   type="text"
                   value={g.query}
-                  placeholder="termo…"
+                  placeholder={t('graph.groupQuery')}
                   onChange={(e) => setGroup(g.id, { query: e.target.value })}
                 />
-                <button className="gc-group-x" onClick={() => removeGroup(g.id)} title="remover grupo">
+                <button className="gc-group-x" onClick={() => removeGroup(g.id)} title={t('graph.removeGroup')}>
                   ×
                 </button>
               </div>
             ))}
             <button className="gc-add" onClick={addGroup}>
-              + novo grupo
+              {t('graph.addGroup')}
             </button>
           </Section>
 
           <div className="gc-footer">
             <button className="gc-reset" onClick={onReset}>
-              Restaurar padrão
+              {t('graph.reset')}
             </button>
           </div>
         </div>

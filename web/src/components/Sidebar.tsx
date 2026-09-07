@@ -5,21 +5,24 @@ import { navigate, type Screen } from '../lib/hashRoute';
 import { Tree, type TreeForceState } from './Tree';
 import { useSettings } from '../context/SettingsContext';
 import { useTree } from '../context/TreeContext';
+import { useT } from '../i18n/useT';
+import type { MessageKey } from '../i18n';
 
 // 'read' isn't a tab here: it has no fixed destination of its own — clicking
 // a node in the tree (or the quick-switcher, or a recent/pinned item) opens
 // it directly. A separate "Leitor" button that did the same thing with no
 // node picked was dead air. Grafo goes first per the Felipe's own ordering
 // preference, even though it's still a placeholder screen.
-const TABS: { screen: Screen; label: string; icon: string }[] = [
-  { screen: 'grafo', label: 'Grafo', icon: '◈' },
-  { screen: 'estante', label: 'Estante', icon: '▥' },
-  { screen: 'console', label: 'Console', icon: '▦' },
+const TABS: { screen: Screen; label: MessageKey; icon: string }[] = [
+  { screen: 'grafo', label: 'nav.graph', icon: '◈' },
+  { screen: 'estante', label: 'nav.shelf', icon: '▥' },
+  { screen: 'console', label: 'nav.console', icon: '▦' },
 ];
 
 interface SidebarProps {
-  /** Hidden rather than unmounted, so tree scroll position and open
-   * folders survive a round trip. */
+  /** Slid out rather than unmounted, so tree scroll position and open
+   * folders survive a round trip. See .sidebar.is-hidden in global.css:
+   * the [hidden] attribute this replaced could not animate. */
   hidden: boolean;
   activeScreen: Screen;
   activePath: string | null;
@@ -34,41 +37,42 @@ export function Sidebar({ hidden, activeScreen, activePath, onOpenSearch, onHide
   // so "Fixados"/"Recentes" never need a manual reload to catch up.
   const { data: state } = useApi<AppState>('/state');
   const { settings } = useSettings();
+  const t = useT();
   const [treeForce, setTreeForce] = useState<TreeForceState>({ open: true, n: 0 });
 
   return (
-    <aside className="sidebar" hidden={hidden}>
+    <aside className={`sidebar${hidden ? ' is-hidden' : ''}`}>
       <div className="sidebar-brand">
         <span className="dot" />
         <span className="brand-label">MindView</span>
         {/* Hides the whole column, not just the nav list below it. The
             old nav-only collapse was a half-measure and is gone. */}
-        <button className="icon-btn" title="Esconder a barra lateral" aria-label="Esconder a barra lateral" onClick={onHide}>
+        <button className="icon-btn" title={t('nav.hideSidebar')} aria-label={t('nav.hideSidebar')} onClick={onHide}>
           ⟨⟨
         </button>
       </div>
 
       <div className="nav-collapse is-open">
         <nav className="tab-nav nav-collapse-inner">
-          {TABS.map((t) => (
+          {TABS.map((tab) => (
             <button
-              key={t.screen}
-              className={`tab-btn${activeScreen === t.screen ? ' is-active' : ''}`}
-              onClick={() => navigate(t.screen)}
+              key={tab.screen}
+              className={`tab-btn${activeScreen === tab.screen ? ' is-active' : ''}`}
+              onClick={() => navigate(tab.screen)}
             >
-              <span className="icon">{t.icon}</span>
-              {t.label}
+              <span className="icon">{tab.icon}</span>
+              {t(tab.label)}
             </button>
           ))}
           <button className={`tab-btn${activeScreen === 'ajustes' ? ' is-active' : ''}`} onClick={() => navigate('ajustes')}>
             <span className="icon">⚙</span>
-            Ajustes
+            {t('nav.settings')}
           </button>
         </nav>
       </div>
 
       <button className="search-btn" onClick={onOpenSearch}>
-        <span>Buscar…</span>
+        <span>{t('nav.search')}</span>
         <kbd>Ctrl+K</kbd>
       </button>
 
@@ -76,7 +80,7 @@ export function Sidebar({ hidden, activeScreen, activePath, onOpenSearch, onHide
         <>
           {state.pinnedNodes.length > 0 && (
             <>
-              <div className="sidebar-section-label">Fixados</div>
+              <div className="sidebar-section-label">{t('nav.pinned')}</div>
               <div className="quick-list">
                 {state.pinnedNodes.slice(0, 6).map((p) => (
                   <button key={p} className="quick-list-item" title={p} onClick={() => navigate('read', p)}>
@@ -88,7 +92,7 @@ export function Sidebar({ hidden, activeScreen, activePath, onOpenSearch, onHide
           )}
           {state.recentNodes.length > 0 && (
             <>
-              <div className="sidebar-section-label">Recentes</div>
+              <div className="sidebar-section-label">{t('nav.recent')}</div>
               <div className="quick-list">
                 {state.recentNodes.slice(0, 5).map((p) => (
                   <button key={p} className="quick-list-item" title={p} onClick={() => navigate('read', p)}>
@@ -102,10 +106,10 @@ export function Sidebar({ hidden, activeScreen, activePath, onOpenSearch, onHide
       )}
 
       <div className="sidebar-section-label-row">
-        <div className="sidebar-section-label">Vault</div>
+        <div className="sidebar-section-label">{t('nav.vault')}</div>
         <button
           className="icon-btn"
-          title={treeForce.open ? 'Recolher tudo' : 'Expandir tudo'}
+          title={treeForce.open ? t('nav.collapseAll') : t('nav.expandAll')}
           onClick={() => setTreeForce((s) => ({ open: !s.open, n: s.n + 1 }))}
         >
           {treeForce.open ? '><' : '<>'}

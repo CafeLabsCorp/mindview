@@ -6,28 +6,6 @@ import { Tree, type TreeForceState } from './Tree';
 import { useSettings } from '../context/SettingsContext';
 import { useTree } from '../context/TreeContext';
 
-// Persisted the same way as the tree's open/closed folders (treeOpenState.ts)
-// and the last route (hashRoute.ts) — a per-browser UI convenience, not
-// vault data, so localStorage rather than server state.
-const NAV_OPEN_KEY = 'mindview.navOpen.v1';
-
-function loadNavOpen(): boolean {
-  try {
-    const raw = localStorage.getItem(NAV_OPEN_KEY);
-    return raw === null ? true : raw === '1';
-  } catch {
-    return true;
-  }
-}
-
-function saveNavOpen(open: boolean): void {
-  try {
-    localStorage.setItem(NAV_OPEN_KEY, open ? '1' : '0');
-  } catch {
-    /* best-effort; ignore quota/private-mode errors */
-  }
-}
-
 // 'read' isn't a tab here: it has no fixed destination of its own — clicking
 // a node in the tree (or the quick-switcher, or a recent/pinned item) opens
 // it directly. A separate "Leitor" button that did the same thing with no
@@ -40,43 +18,37 @@ const TABS: { screen: Screen; label: string; icon: string }[] = [
 ];
 
 interface SidebarProps {
+  /** Hidden rather than unmounted, so tree scroll position and open
+   * folders survive a round trip. */
+  hidden: boolean;
   activeScreen: Screen;
   activePath: string | null;
   onOpenSearch: () => void;
+  onHide: () => void;
 }
 
-export function Sidebar({ activeScreen, activePath, onOpenSearch }: SidebarProps) {
+export function Sidebar({ hidden, activeScreen, activePath, onOpenSearch, onHide }: SidebarProps) {
   const { tree } = useTree();
   // Refetches on its own whenever Reader.tsx bumps the shared app-state
   // version (opening a node, pinning/unpinning) — see AppStateEvents.tsx —
   // so "Fixados"/"Recentes" never need a manual reload to catch up.
   const { data: state } = useApi<AppState>('/state');
   const { settings } = useSettings();
-  const [navOpen, setNavOpenState] = useState(loadNavOpen);
-  const setNavOpen = (next: boolean | ((prev: boolean) => boolean)) => {
-    setNavOpenState((prev) => {
-      const resolved = typeof next === 'function' ? (next as (prev: boolean) => boolean)(prev) : next;
-      saveNavOpen(resolved);
-      return resolved;
-    });
-  };
   const [treeForce, setTreeForce] = useState<TreeForceState>({ open: true, n: 0 });
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" hidden={hidden}>
       <div className="sidebar-brand">
         <span className="dot" />
         <span className="brand-label">MindView</span>
-        <button
-          className="icon-btn"
-          title={navOpen ? 'Recolher menu' : 'Expandir menu'}
-          onClick={() => setNavOpen((o) => !o)}
-        >
-          {navOpen ? '⟨⟨' : '⟩⟩'}
+        {/* Hides the whole column, not just the nav list below it. The
+            old nav-only collapse was a half-measure and is gone. */}
+        <button className="icon-btn" title="Esconder a barra lateral" aria-label="Esconder a barra lateral" onClick={onHide}>
+          ⟨⟨
         </button>
       </div>
 
-      <div className={`nav-collapse${navOpen ? ' is-open' : ''}`}>
+      <div className="nav-collapse is-open">
         <nav className="tab-nav nav-collapse-inner">
           {TABS.map((t) => (
             <button

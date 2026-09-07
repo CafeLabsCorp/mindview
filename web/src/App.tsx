@@ -11,6 +11,7 @@ import { TreeProvider } from './context/TreeContext';
 import { useSettings } from './context/SettingsContext';
 import { TerminalBar } from './components/TerminalBar';
 import { loadTerminalPanelState, saveTerminalPanelState } from './lib/terminalPanelState';
+import { loadSidebarOpen, saveSidebarOpen } from './lib/sidebarState';
 
 // xterm.js is ~250 KB and the terminal ships disabled, so it is code-split
 // out of the main bundle: a session that never opens the panel never
@@ -21,7 +22,13 @@ export default function App() {
   const route = useHashRoute();
   const { settings } = useSettings();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpenState] = useState(loadSidebarOpen);
   const [terminal, setTerminal] = useState(loadTerminalPanelState);
+
+  const setSidebarOpen = useCallback((open: boolean) => {
+    setSidebarOpenState(open);
+    saveSidebarOpen(open);
+  }, []);
 
   const terminalEnabled = settings.terminalEnabled;
   // Once opened, the panel stays mounted for the rest of the session even
@@ -77,7 +84,18 @@ export default function App() {
   return (
     <TreeProvider>
       <div className="app-shell">
-        <Sidebar activeScreen={route.screen} activePath={route.screen === 'read' ? route.param : null} onOpenSearch={() => setSearchOpen(true)} />
+        <Sidebar
+          hidden={!sidebarOpen}
+          activeScreen={route.screen}
+          activePath={route.screen === 'read' ? route.param : null}
+          onOpenSearch={() => setSearchOpen(true)}
+          onHide={() => setSidebarOpen(false)}
+        />
+        {!sidebarOpen && (
+          <button className="sidebar-rail" onClick={() => setSidebarOpen(true)} aria-label="Mostrar a barra lateral" title="Mostrar a barra lateral">
+            ⟩⟩
+          </button>
+        )}
         <div className="main-col">
           <div className="screen-area">
             {route.screen === 'read' && <Reader path={route.param} />}

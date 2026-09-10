@@ -1,5 +1,10 @@
 **[Leia em Português](README.pt-br.md)**
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+  <img alt="MindView" src="docs/assets/logo-light.svg" width="300">
+</picture>
+
 # MindView (MV)
 
 A [Café Labs](https://cafelabs.net) project. "MindView" is the final name

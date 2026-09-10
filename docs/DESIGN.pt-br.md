@@ -193,3 +193,32 @@ grafo e o keyframe do card de hover estão dentro de
 `@media (prefers-reduced-motion: reduce)`; o resto do app ainda não lê essa
 flag — uma lacuna que vale a pena fechar se mais animação for adicionada,
 não uma decisão tomada de propósito.
+
+## Logo e ícone
+
+As duas marcas derivam da gramática da logo do Mind — hastes claras são
+*nós*, o verde é a *ligação* entre eles — e foram desenhadas pelo Felipe
+(2026-09-09). Os arquivos vivem em `docs/assets/`.
+
+**Wordmark** (`logo.svg`, mais `logo-dark.svg` / `logo-light.svg` pra
+`<picture>` no Markdown): "MiND" na construção de hastes compartilhadas —
+três hastes claras, um chevron / ponto / diagonal / arco verde separando as
+letras, o nó do "D" com um disco verde e halo — seguido de **VIEW** como
+grade monoespaçada 2×2 verde (a mesma marca do ícone do app). As hastes são
+da **mesma neutra**, não uma terceira cor: um rascunho anterior deu ao VIEW um mostarda
+(`#EFAC39`) e foi descartado — lia como âmbar de aviso, colidia com a
+paleta ANSI de tags e reprovava no WCAG sobre o fundo claro (1.9:1). As
+partes neutras são `currentColor` pra wordmark funcionar nos dois temas; o
+verde fica literal `#3FB950`. Não reintroduzir uma terceira cor de marca —
+mesma regra que matou o `--blue`.
+
+**Ícone do app** (`icon.svg`, espelhado em `web/public/favicon.svg`): a
+palavra **VIEW** como grade monoespaçada 2×2, verde `#3FB950` sobre uma
+placa `#0d0d0d` de cantos arredondados (raio 22%). Um ícone de app é dono
+do próprio fundo, então ele **não** segue o tema — a placa escura fixa é a
+identidade do chrome de terminal e mantém o verde legível em qualquer
+taskbar ou barra de abas. É também a fonte do futuro ícone do pacote
+Electron (o `electron-builder` gera o conjunto `.ico` / `.icns` / png a
+partir dela). Não resolve em letras legíveis a 16px — aceitável pra um app
+desktop de janela única; uma variante 16px simplificada é item futuro se um
+dia importar.

@@ -3,6 +3,7 @@ import { useApi } from '../hooks/useApi';
 import type { AppState } from '../api/types';
 import { navigate, type Screen } from '../lib/hashRoute';
 import { Tree, type TreeForceState } from './Tree';
+import { BrandLogo } from './BrandLogo';
 import { useSettings } from '../context/SettingsContext';
 import { useTree } from '../context/TreeContext';
 import { useT } from '../i18n/useT';
@@ -43,8 +44,7 @@ export function Sidebar({ hidden, activeScreen, activePath, onOpenSearch, onHide
   return (
     <aside className={`sidebar${hidden ? ' is-hidden' : ''}`}>
       <div className="sidebar-brand">
-        <span className="dot" />
-        <span className="brand-label">MindView</span>
+        <BrandLogo className="brand-logo" />
         {/* Hides the whole column, not just the nav list below it. The
             old nav-only collapse was a half-measure and is gone. */}
         <button className="icon-btn" title={t('nav.hideSidebar')} aria-label={t('nav.hideSidebar')} onClick={onHide}>

@@ -184,3 +184,31 @@ instead of jumping. The graph's CSS transitions and the hover card's
 keyframe are wrapped in `@media (prefers-reduced-motion: reduce)`; the rest
 of the app still doesn't read that flag — a gap worth closing if more
 animation is added, not a decision made on purpose.
+
+## Logo & icon
+
+Both marks are derived from the Mind logo's grammar — light stems are
+*nodes*, green is the *link* between them — and were drawn by Felipe
+(2026-09-09). Assets live in `docs/assets/`.
+
+**Wordmark** (`logo.svg`, plus `logo-dark.svg` / `logo-light.svg` for
+`<picture>` in Markdown): "MiND" in the shared-stem construction — three
+light stems, a green chevron / dot / diagonal / arc separating the letters,
+the "D" node carrying a haloed green disc — followed by **VIEW** set as a
+green 2×2 monospaced grid (the same mark as the app icon). The stems are the
+**same neutral**, not a third colour: an earlier draft coloured VIEW a marigold
+(`#EFAC39`) and it was dropped — it read as a warning amber, collided with
+the ANSI tag palette, and failed WCAG on the light background (1.9:1). The
+neutral parts are `currentColor` so the wordmark works on either theme;
+green stays literal `#3FB950`. Do not reintroduce a third brand hue — same
+rule that killed `--blue`.
+
+**App icon** (`icon.svg`, mirrored to `web/public/favicon.svg`): the word
+**VIEW** as a 2×2 monospaced grid, green `#3FB950` on a `#0d0d0d` rounded
+plate (22% radius). An app icon owns its background, so it does **not**
+follow the theme — the fixed dark plate is the terminal-chrome identity and
+keeps the green readable on any taskbar or tab bar. This is also the source
+for the future Electron package icon (`electron-builder` generates the
+`.ico` / `.icns` / png set from it). It does not resolve to legible letters
+at 16px — acceptable for a single-window desktop app; a simplified 16px
+variant is a future item if it ever matters.

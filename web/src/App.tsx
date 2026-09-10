@@ -8,7 +8,9 @@ import { GraphScreen } from './screens/GraphScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { TerminalBar } from './components/TerminalBar';
 import { useHashRoute } from './lib/hashRoute';
-import { TreeProvider } from './context/TreeContext';
+import { TreeProvider, useTree } from './context/TreeContext';
+import { NoVault } from './screens/NoVault';
+import type { Route } from './lib/hashRoute';
 import { useSettings } from './context/SettingsContext';
 import { loadTerminalHeight, saveTerminalHeight } from './lib/terminalPanelState';
 import { loadSidebarOpen, saveSidebarOpen } from './lib/sidebarState';
@@ -121,11 +123,7 @@ export default function App() {
         </button>
         <div className="main-col">
           <div className="screen-area">
-            {route.screen === 'read' && <Reader path={route.param} />}
-            {route.screen === 'estante' && <Shelf notebookKey={route.param} />}
-            {route.screen === 'console' && <Console />}
-            {route.screen === 'grafo' && <GraphScreen />}
-            {route.screen === 'ajustes' && <SettingsScreen />}
+            <ScreenArea route={route} />
           </div>
           {terminalEnabled && terminalMounted && (
             <Suspense fallback={null}>
@@ -147,4 +145,28 @@ export default function App() {
       <QuickSwitcher open={searchOpen} onClose={() => setSearchOpen(false)} />
     </TreeProvider>
   );
+}
+
+// Inside TreeProvider so it can see whether the vault turned up anything.
+// An empty tree (loaded, zero files) is the first-run "you have no vault"
+// case — show guidance instead of a blank Reader, but let Settings through
+// so the vault picker is still reachable.
+function ScreenArea({ route }: { route: Route }) {
+  const { tree } = useTree();
+  const vaultEmpty = tree !== null && tree.length === 0;
+
+  if (vaultEmpty && route.screen !== 'ajustes') return <NoVault />;
+
+  switch (route.screen) {
+    case 'read':
+      return <Reader path={route.param} />;
+    case 'estante':
+      return <Shelf notebookKey={route.param} />;
+    case 'console':
+      return <Console />;
+    case 'grafo':
+      return <GraphScreen />;
+    case 'ajustes':
+      return <SettingsScreen />;
+  }
 }

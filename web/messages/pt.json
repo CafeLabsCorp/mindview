@@ -134,6 +134,15 @@
     "disabled": "terminal desligado — habilitar nos Ajustes",
     "short": "terminal"
   },
+  "noVault": {
+    "title": "Nenhuma nota aqui ainda",
+    "body": "O MindView não achou nenhum arquivo Markdown em {path}.",
+    "cloneIntro": "Não tem um vault do Mind? Clone o template numa pasta:",
+    "thenPick": "Depois aponte o MindView pra essa pasta:",
+    "openSettings": "Abrir Ajustes",
+    "copy": "copiar",
+    "copied": "copiado"
+  },
   "settings": {
     "appearance": "Aparência",
     "accent": "Cor de destaque (accent)",

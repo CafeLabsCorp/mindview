@@ -546,6 +546,42 @@ input[type='color']::-moz-color-swatch {
   text-align: center;
 }
 
+.no-vault {
+  max-width: 560px;
+  margin: 8vh auto 0;
+  padding: 0 32px;
+}
+.no-vault h2 {
+  font-family: var(--font-display);
+  margin: 0 0 12px;
+}
+.no-vault p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+.no-vault-step {
+  margin-top: 24px;
+  color: var(--fg);
+}
+.no-vault-cmd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+.no-vault-cmd code {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--on-code);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
 .node-toolbar {
   display: flex;
   gap: 8px;

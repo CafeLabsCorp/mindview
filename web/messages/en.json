@@ -134,6 +134,15 @@
     "disabled": "terminal off — enable it in Settings",
     "short": "terminal"
   },
+  "noVault": {
+    "title": "No notes here yet",
+    "body": "MindView found no Markdown files under {path}.",
+    "cloneIntro": "Don't have a Mind vault? Clone the template into a folder:",
+    "thenPick": "Then point MindView at that folder:",
+    "openSettings": "Open Settings",
+    "copy": "copy",
+    "copied": "copied"
+  },
   "settings": {
     "appearance": "Appearance",
     "accent": "Accent colour",

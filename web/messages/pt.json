@@ -176,6 +176,7 @@
     "terminal": "Terminal",
     "terminalEnabled": "Habilitar o terminal embutido",
     "terminalEnabledHint": "desligado por padrão: com ele ligado o app passa a poder abrir um shell nesta máquina. Ctrl+` abre e fecha o painel.",
+    "terminalEnableConfirm": "Isso deixa o MindView executar um shell interativo na sua máquina — só ative se souber o que isso significa. Ligar?",
     "shell": "Shell",
     "shellHint": "detectados em {platform}; deixe em branco pro padrão da máquina",
     "shellDetecting": "detectando…",

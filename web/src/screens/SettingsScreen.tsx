@@ -269,7 +269,12 @@ function TerminalSection() {
         label={t('settings.terminalEnabled')}
         hint={t('settings.terminalEnabledHint')}
         checked={settings.terminalEnabled}
-        onChange={(v) => update({ terminalEnabled: v })}
+        onChange={(v) => {
+          // Turning it ON grants shell execution — confirm once. Turning it
+          // off never needs a prompt.
+          if (v && !window.confirm(t('settings.terminalEnableConfirm'))) return;
+          update({ terminalEnabled: v });
+        }}
       />
       {settings.terminalEnabled && (
         <>

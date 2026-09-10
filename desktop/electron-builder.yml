@@ -2,6 +2,11 @@ appId: net.cafelabs.mindview
 productName: MindView
 copyright: © Café Labs
 
+# In an npm workspace, `electron` hoists to the repo-root node_modules and
+# electron-builder can't find it under desktop/ to infer the version — state
+# it explicitly. Keep in sync with devDependencies.electron.
+electronVersion: 33.4.11
+
 directories:
   output: release
   buildResources: build

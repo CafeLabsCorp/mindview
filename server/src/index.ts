@@ -59,7 +59,10 @@ import { resolveCwd, resolveLaunch } from './app/terminalService.js';
 const PORT = Number(process.env.MINDVIEW_PORT ?? 4317);
 const TOKEN = generateToken();
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DIST_DIR = join(__dirname, '..', '..', 'web', 'dist'); // server/src -> server -> mindview -> web/dist
+// In dev/`npm run start` this resolves relative to server/src. In the
+// packaged desktop app the layout is different, so the Electron shell
+// (desktop/) passes the real path in — see desktop/src/serverProcess.ts.
+const DIST_DIR = process.env.MINDVIEW_WEB_DIR ?? join(__dirname, '..', '..', 'web', 'dist');
 
 const config = readConfig();
 const vaultService = new VaultService(config.vault_path);
@@ -426,3 +429,13 @@ async function shutdown(): Promise<void> {
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+// The desktop shell (desktop/src/serverProcess.ts) can't rely on signals to
+// tear this down: on Windows `kill('SIGTERM')` is a hard TerminateProcess
+// (no graceful run, no process-tree kill), and in WSL mode the signal goes
+// to the `wsl.exe` relay, not here. So the shell also closes our stdin —
+// treat that as "the window is gone, shut down and take the PTYs with you".
+if (process.env.MINDVIEW_SHELL_MANAGED === '1') {
+  process.stdin.on('close', shutdown);
+  process.stdin.on('end', shutdown);
+  process.stdin.resume();
+}

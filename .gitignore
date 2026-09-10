@@ -4,6 +4,11 @@ dist/
 .DS_Store
 npm-debug.log*
 
+# desktop packaging: build output + fetched/staged binaries, never source
+desktop/staging/
+desktop/node/
+desktop/release/
+
 # per-machine build artifacts / local overrides, not source
 .env
 .env.local

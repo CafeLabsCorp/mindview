@@ -5,14 +5,16 @@
   "workspaces": [
     "domain",
     "server",
-    "web"
+    "web",
+    "desktop"
   ],
   "scripts": {
     "build:web": "npm run build -w web",
     "start": "npm run build:web && npm run start -w server",
     "dev": "concurrently -k -n web,server -c cyan,green \"npm run dev -w web\" \"npm run dev -w server\"",
+    "desktop": "npm run build:web && npm run build -w server && npm run dev -w desktop",
     "test": "npm run test -w domain && npm run test -w server && npm run test -w web",
-    "typecheck": "npm run typecheck -w domain && npm run typecheck -w server && npm run typecheck -w web",
+    "typecheck": "npm run typecheck -w domain && npm run typecheck -w server && npm run typecheck -w web && npm run typecheck -w desktop",
     "check": "npm run typecheck && npm run test && npm run build:web"
   },
   "devDependencies": {

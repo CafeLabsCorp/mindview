@@ -1,0 +1,55 @@
+appId: net.cafelabs.mindview
+productName: MindView
+copyright: © Café Labs
+
+directories:
+  output: release
+  buildResources: build
+
+# app.asar holds only the Electron main bundle. Everything the server needs
+# is staged (desktop/scripts/stage.mjs) and shipped unpacked under
+# resources/ so native files (node-pty) and the bundled Node stay real files.
+files:
+  - dist/main.cjs
+  - package.json
+
+extraResources:
+  - from: staging/server
+    to: server
+  - from: staging/web
+    to: web
+  - from: node
+    to: node
+
+asar: true
+# We ship our own Node for the server child; node-pty is loaded by THAT
+# Node, never by Electron — so there is nothing to rebuild for Electron's ABI.
+npmRebuild: false
+
+# Icon: build/icon.png (1024², rasterised from docs/assets/icon.svg) is
+# picked up by convention; electron-builder generates the platform
+# .ico / .icns from it.
+
+win:
+  target:
+    - target: nsis
+    - target: portable
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-${version}-setup.${ext}
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+
+linux:
+  target:
+    - AppImage
+  category: Utility
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.productivity

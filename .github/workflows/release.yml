@@ -1,0 +1,62 @@
+name: release
+
+# Builds the Windows desktop package and attaches it to a GitHub Release.
+# Trigger: push a tag like `v0.1.0`, or run manually from the Actions tab
+# (manual runs build but don't publish — the .exe is a workflow artifact).
+#
+# Why a Windows runner: electron-builder must run on Windows to make an
+# .exe, and the local WSL/Linux box can't (its `tar` won't extract the
+# Node .zip that scripts/fetch-node.mjs downloads). Public repo → the
+# runner minutes and the Release storage are free. See
+# mind/tarefas/empresa/mindview.md ("Stack do empacotamento").
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write # to create the Release and upload assets
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the desktop package
+        run: npm run dist -w desktop
+        env:
+          # scripts/fetch-node.mjs fetches Node for the package's target.
+          MINDVIEW_TARGET: win32-x64
+
+      - name: List build output
+        run: dir desktop\release
+        shell: cmd
+
+      - name: Upload as workflow artifact (manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mindview-windows
+          path: |
+            desktop/release/*.exe
+          retention-days: 14
+
+      - name: Publish GitHub Release (tag pushes)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "MindView ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            desktop/release/*.exe

@@ -17,7 +17,7 @@ export function TerminalScreen() {
   const { settings } = useSettings();
   const t = useT();
   const dock = useTerminalDock();
-  const { sessions, popouts } = dock;
+  const { sessions } = dock;
   const { tabs, activeId, active } = sessions;
   const enabled = settings.terminalEnabled;
 
@@ -58,7 +58,7 @@ export function TerminalScreen() {
                 selected={tab.id === activeId}
                 onActivate={() => {
                   sessions.activate(tab.id);
-                  if (tab.poppedOut) popouts.get(tab.id)?.win.focus();
+                  if (tab.poppedOut) dock.focusPopout(tab.id);
                 }}
                 onDragOut={(x, y) => dock.popOut(tab.id, { x, y })}
               >

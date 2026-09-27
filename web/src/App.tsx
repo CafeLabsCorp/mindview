@@ -48,8 +48,7 @@ function AppShell() {
   // floating in a balloon, to that balloon.
   const goToTerminal = useCallback(() => {
     const active = dock.sessions.active;
-    const popped = active?.poppedOut ? dock.popouts.get(active.id) : undefined;
-    if (popped) popped.win.focus();
+    if (active?.poppedOut) dock.focusPopout(active.id);
     else navigate('terminal');
   }, [dock]);
 

@@ -30,6 +30,8 @@ interface TerminalDockValue {
   /** Back onto the page; the session keeps running. */
   dockBack: (id: number) => void;
   setOnTop: (id: number, onTop: boolean) => void;
+  /** Bring a floating session's balloon to the front. */
+  focusPopout: (id: number) => void;
   /** Starts a session if there is none; returns the one to show. */
   ensureSession: () => void;
 }
@@ -56,11 +58,19 @@ export function TerminalDockProvider({ children }: { children: ReactNode }) {
     sessionsRef.current.setPoppedOut(id, false);
   }, []);
 
+  const focusPopout = useCallback((id: number) => {
+    const p = popoutsRef.current.get(id);
+    if (!p) return;
+    // On desktop the main process does it — a page calling focus() on
+    // another window is ignored by Windows' focus-stealing rules.
+    if (window.mindviewDesktop?.focusPopout) window.mindviewDesktop.focusPopout(id);
+    else p.win.focus();
+  }, []);
+
   const popOut = useCallback(
     async (id: number, at?: PopoutPosition) => {
-      const existing = popoutsRef.current.get(id);
-      if (existing) {
-        existing.win.focus();
+      if (popoutsRef.current.has(id)) {
+        focusPopout(id);
         return;
       }
       const win = await openPopoutWindow(id, at);
@@ -72,7 +82,7 @@ export function TerminalDockProvider({ children }: { children: ReactNode }) {
       setPopouts((prev) => new Map(prev).set(id, { win, onTop: true }));
       sessionsRef.current.setPoppedOut(id, true);
     },
-    [forget],
+    [forget, focusPopout],
   );
 
   const dockBack = useCallback((id: number) => {
@@ -120,8 +130,8 @@ export function TerminalDockProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<TerminalDockValue>(
-    () => ({ sessions, started, pageSlot, setPageSlot, popouts, popOut, dockBack, setOnTop, ensureSession }),
-    [sessions, started, pageSlot, popouts, popOut, dockBack, setOnTop, ensureSession],
+    () => ({ sessions, started, pageSlot, setPageSlot, popouts, popOut, dockBack, setOnTop, focusPopout, ensureSession }),
+    [sessions, started, pageSlot, popouts, popOut, dockBack, setOnTop, focusPopout, ensureSession],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

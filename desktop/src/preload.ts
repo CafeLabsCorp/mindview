@@ -22,6 +22,10 @@ const bridge = {
   showAssetInFolder: (vaultPath: string): Promise<boolean> => ipcRenderer.invoke('mindview:show-asset', vaultPath),
   /** Keep a terminal balloon above other apps, or let it go behind. */
   setPopoutOnTop: (id: number, onTop: boolean): Promise<boolean> => ipcRenderer.invoke('mindview:popout-on-top', id, onTop),
+  /** Bring a terminal balloon to the front. From the page, window.focus()
+   * on another window is refused by Windows' focus-stealing rules; the main
+   * process is allowed. */
+  focusPopout: (id: number): Promise<boolean> => ipcRenderer.invoke('mindview:popout-focus', id),
 };
 
 export type DesktopBridge = typeof bridge;

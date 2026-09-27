@@ -16,5 +16,7 @@ interface Window {
     showAssetInFolder: (vaultPath: string) => Promise<boolean>;
     /** Keep a terminal balloon above other apps, or not. */
     setPopoutOnTop?: (id: number, onTop: boolean) => Promise<boolean>;
+    /** Bring a terminal balloon to the front (see desktop/src/preload.ts). */
+    focusPopout?: (id: number) => Promise<boolean>;
   };
 }

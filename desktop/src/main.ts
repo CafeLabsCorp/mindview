@@ -155,6 +155,18 @@ function registerBridge(origin: string): void {
     return true;
   });
 
+  // Ctrl+` with the active session floating: bring its balloon forward.
+  ipcMain.handle('mindview:popout-focus', (e, id: unknown) => {
+    if (!fromOurPage(e)) return false;
+    const child = popouts.get(Number(id));
+    if (!child || child.isDestroyed()) return false;
+    if (child.isMinimized()) child.restore();
+    child.show();
+    child.moveTop();
+    child.focus();
+    return true;
+  });
+
   // "Show in folder" — any asset: it selects the file in Explorer and runs
   // nothing.
   ipcMain.handle('mindview:show-asset', async (e, vaultPath: unknown) => {

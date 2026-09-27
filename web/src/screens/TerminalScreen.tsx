@@ -37,7 +37,7 @@ export function TerminalScreen() {
         <TerminalChrome path={t('terminal.label')} />
         <div className="terminal-screen-off">
           <p>{t('terminal.offBody')}</p>
-          <button className="btn btn-primary" onClick={() => navigate('ajustes')}>
+          <button className="btn btn-primary" onClick={() => navigate('ajustes', 'terminal')}>
             {t('terminal.offCta')}
           </button>
         </div>

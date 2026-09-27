@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TerminalChrome } from '../components/TerminalChrome';
 import { useSettings, FALLBACK_SETTINGS } from '../context/SettingsContext';
 import { useApi } from '../hooks/useApi';
@@ -30,9 +30,19 @@ const fontLabel = (t: TFn, f: (typeof READ_FONTS)[number]) => (f.label ? t(f.lab
  * themes (that's an explicit MVP exclusion) — see the task brief's
  * "Escopo de customização". Everything here round-trips through
  * server/src/app/houseA.ts's settings.yaml (Casa A). */
-export function SettingsScreen() {
+/** `section`: the id after #/ajustes/ — the screen scrolls to it on open
+ * (e.g. the Terminal page's "Open Settings" lands on the terminal block). */
+export function SettingsScreen({ section }: { section?: string | null }) {
   const { settings, update } = useSettings();
   const t = useT();
+
+  useEffect(() => {
+    if (!section) return;
+    const id = requestAnimationFrame(() =>
+      document.getElementById(`settings-${section}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    );
+    return () => cancelAnimationFrame(id);
+  }, [section]);
 
   return (
     <>
@@ -214,7 +224,7 @@ function TerminalSection() {
   };
 
   return (
-    <section className="settings-group">
+    <section className="settings-group" id="settings-terminal">
       <div className="settings-group-head">
         <h3>{t('settings.terminal')}</h3>
         <button
@@ -355,7 +365,9 @@ function TerminalSection() {
               value={settings.terminalFontSize}
               onChange={(e) => update({ terminalFontSize: Number(e.target.value) })}
             />
-            <span className="mono">{settings.terminalFontSize}px</span>
+            {/* fixed width + always one decimal: "13px" → "13.5px" used to
+                change the label's width and shove the slider sideways */}
+            <span className="mono range-value">{settings.terminalFontSize.toFixed(1)}px</span>
           </div>
         </>
       )}

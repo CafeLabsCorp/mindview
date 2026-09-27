@@ -133,7 +133,7 @@ function ScreenArea({ route }: { route: Route }) {
     case 'grafo':
       return <GraphScreen />;
     case 'ajustes':
-      return <SettingsScreen />;
+      return <SettingsScreen section={route.param} />;
     case 'terminal':
       return <TerminalScreen />;
   }

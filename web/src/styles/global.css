@@ -1278,6 +1278,12 @@ input[type='color']::-moz-color-swatch {
   color: var(--fg);
   font-weight: 600;
 }
+.range-value {
+  display: inline-block;
+  min-width: 6.5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .gc-count {
   color: var(--subtle);
   font-size: 10.5px;

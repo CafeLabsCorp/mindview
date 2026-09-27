@@ -167,7 +167,7 @@ describe('the Terminal page', () => {
     render();
     expect(views()).toHaveLength(0);
     click(container.querySelector('.terminal-screen-off .btn'));
-    expect(navigate).toHaveBeenCalledWith('ajustes');
+    expect(navigate).toHaveBeenCalledWith('ajustes', 'terminal');
   });
 });
 

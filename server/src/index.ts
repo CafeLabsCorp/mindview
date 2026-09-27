@@ -54,7 +54,7 @@ import { obsidianUri, vscodeUri } from './io/externalOpen.js';
 import { generateToken, isHostAllowed, rejectUnauthorized, tokenFromRequest, tokenMatches } from './io/security.js';
 import { HttpError, readJsonBody, sendJson } from './http/respond.js';
 import { Router } from './http/router.js';
-import { attachTerminalBridge, killAllTerminalSessions } from './http/terminalSocket.js';
+import { attachTerminalBridge, isOriginAllowed, killAllTerminalSessions } from './http/terminalSocket.js';
 import { detectShells } from './app/shells.js';
 import { resolveCwd, resolveLaunch } from './app/terminalService.js';
 
@@ -365,7 +365,14 @@ function serveStatic(pathname: string, res: import('node:http').ServerResponse):
   const isFile = candidate.startsWith(DIST_DIR) && existsSync(candidate) && statSync(candidate).isFile();
   const target = isFile ? candidate : indexPath; // SPA fallback for any non-asset route
   if (target === indexPath) {
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    // This page carries the token — never let another site frame it
+    // (clickjacking the terminal).
+    res.writeHead(200, {
+      'content-type': 'text/html; charset=utf-8',
+      'content-security-policy': "frame-ancestors 'none'",
+      'x-frame-options': 'DENY',
+      'referrer-policy': 'no-referrer',
+    });
     res.end(injectToken(readFileSync(target, 'utf-8')));
     return;
   }
@@ -385,6 +392,20 @@ const server = createServer(async (req, res) => {
   const pathname = url.pathname;
 
   if (pathname.startsWith('/api/')) {
+    // The token alone is not enough: it can leak (a PDF can read its own
+    // URL, which carried it), and a leaked token let ANY web page fire
+    // "simple" cross-origin requests — POST text/plain, no preflight — at
+    // endpoints that rewrite settings, terminal command included. So a
+    // request must also come from our own page: browsers stamp
+    // Sec-Fetch-Site on every request (same-origin for our page, through
+    // the Vite proxy too) and Origin on every write. Absent headers = not a
+    // browser (the desktop shell, tests, curl) — those don't hold the
+    // user's cookies-equivalent anyway; the token still gates them.
+    const fetchSite = req.headers['sec-fetch-site'];
+    if ((fetchSite !== undefined && fetchSite !== 'same-origin' && fetchSite !== 'none') || !isOriginAllowed(req.headers.origin, PORT)) {
+      rejectUnauthorized(res, 'cross-origin request');
+      return;
+    }
     const token = tokenFromRequest(req);
     if (!tokenMatches(token, TOKEN)) {
       rejectUnauthorized(res, 'missing or invalid token');

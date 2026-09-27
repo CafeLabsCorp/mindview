@@ -183,6 +183,44 @@ describe('composition root — tree and settings round-trip', () => {
   });
 });
 
+describe('composition root — a leaked token is not enough from another site', () => {
+  const importUrl = () => apiUrl('/backup/import');
+
+  it('refuses a request the browser marks as cross-site, even with the token', async () => {
+    const res = await fetch(apiUrl('/settings'), { headers: { 'sec-fetch-site': 'cross-site' } });
+    expect(res.status).toBe(403);
+  });
+
+  it('refuses a localhost page on another port (same-site, different origin)', async () => {
+    const res = await fetch(apiUrl('/settings'), {
+      method: 'PUT',
+      headers: { 'sec-fetch-site': 'same-site', origin: 'http://localhost:8080', 'content-type': 'application/json' },
+      body: '{}',
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('refuses a foreign Origin on a write', async () => {
+    const res = await fetch(importUrl(), { method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json' }, body: '{}' });
+    expect(res.status).toBe(403);
+  });
+
+  it('refuses a no-preflight text/plain body — the simple-request trick', async () => {
+    const res = await fetch(importUrl(), { method: 'POST', headers: { 'content-type': 'text/plain' }, body: '{"settings":{}}' });
+    expect(res.status).toBe(415);
+  });
+
+  it('still accepts our own page (same-origin)', async () => {
+    const res = await fetch(apiUrl('/settings'), { headers: { 'sec-fetch-site': 'same-origin', origin: `http://127.0.0.1:${PORT}` } });
+    expect(res.status).toBe(200);
+  });
+
+  it('the app page cannot be framed by another site', async () => {
+    const res = await fetch(`http://127.0.0.1:${PORT}/`);
+    expect(res.headers.get('x-frame-options')).toBe('DENY');
+  });
+});
+
 describe('composition root — tags are discovered from the vault, colours are only what the user picked', () => {
   const putSettings = (body: unknown) =>
     fetch(apiUrl('/settings'), { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });

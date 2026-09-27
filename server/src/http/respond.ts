@@ -28,6 +28,12 @@ export class HttpError extends Error {
 const MAX_BODY_BYTES = 5 * 1024 * 1024; // 5MB — generous for a notebook/settings PUT, nowhere near vault-sized
 
 export function readJsonBody<T = unknown>(req: IncomingMessage): Promise<T> {
+  // JSON only. A non-JSON Content-Type (text/plain, form) is what a
+  // cross-origin page can send without a CORS preflight — requiring
+  // application/json forces one, which this server never answers.
+  if (!/^application\/json\b/i.test(req.headers['content-type'] ?? '')) {
+    return Promise.reject(new HttpError(415, 'request body must be application/json'));
+  }
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;

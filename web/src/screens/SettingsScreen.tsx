@@ -9,6 +9,7 @@ import type { ConfigResponse, ExtCount, TagCount, TerminalShellsResponse } from 
 import { checkTagColorContrast } from '../lib/contrast';
 import { useThemeColors } from '../lib/useThemeColors';
 import { vaultErrorMessage } from '../lib/vaultError';
+import { followScrollTo } from '../lib/followScrollTo';
 import { useT } from '../i18n/useT';
 import { LOCALES, type MessageKey, type TFn } from '../i18n';
 
@@ -39,18 +40,29 @@ export function SettingsScreen({ section }: { section?: string | null }) {
 
   useEffect(() => {
     if (!section) return;
-    const id = requestAnimationFrame(() => {
+    // Sections above this one (tag and file-type colours) fill in from async
+    // fetches AFTER the first scroll and push it down — it used to land in
+    // the middle of the tag list (v0.2.2 retest, S.5). followScrollTo keeps
+    // it aligned until the page stops changing, then the border flashes.
+    let cancel: (() => void) | undefined;
+    const start = requestAnimationFrame(() => {
       const el = document.getElementById(`settings-${section}`);
       if (!el) return;
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      // A green border that fades in and out, so the eye lands on the
-      // section the scroll brought up (Felipe, v0.2.1 retest).
-      el.classList.remove('section-flash');
-      void el.offsetWidth; // restart the animation if it's already there
-      el.classList.add('section-flash');
-      el.addEventListener('animationend', () => el.classList.remove('section-flash'), { once: true });
+      cancel = followScrollTo(el, {
+        onSettled: (target) => {
+          // A green border that fades in and out, so the eye lands on the
+          // section (Felipe, v0.2.1 retest).
+          target.classList.remove('section-flash');
+          void target.offsetWidth; // restart the animation if it's already there
+          target.classList.add('section-flash');
+          target.addEventListener('animationend', () => target.classList.remove('section-flash'), { once: true });
+        },
+      });
     });
-    return () => cancelAnimationFrame(id);
+    return () => {
+      cancelAnimationFrame(start);
+      cancel?.();
+    };
   }, [section]);
 
   return (

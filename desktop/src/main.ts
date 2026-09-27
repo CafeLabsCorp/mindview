@@ -191,7 +191,12 @@ function createWindow(): void {
     },
   });
 
-  win.once('ready-to-show', () => win?.show());
+  // Opens maximized (Felipe, 2026-09-14) — maximize() before show() so the
+  // first painted frame is already full size, no visible jump.
+  win.once('ready-to-show', () => {
+    win?.maximize();
+    win?.show();
+  });
   win.loadURL(server!.url);
 
   // Keep it a window, not a browser: external links open in the real

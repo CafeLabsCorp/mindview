@@ -35,18 +35,19 @@ function target() {
 }
 
 describe('followScrollTo', () => {
-  it('re-aligns every time the content above grows, and only settles once it stops', () => {
+  it('waits for the content above to stop growing, then scrolls once, smoothly', () => {
     const el = target();
     const onSettled = vi.fn();
     followScrollTo(el, { onSettled });
-    expect(el.scrollIntoView).toHaveBeenCalledTimes(1);
     resize(); // tag list arrived
-    vi.advanceTimersByTime(200);
+    vi.advanceTimersByTime(150);
     resize(); // file-type list arrived
-    vi.advanceTimersByTime(200);
+    vi.advanceTimersByTime(150);
+    expect(el.scrollIntoView).not.toHaveBeenCalled(); // no jumping around meanwhile
     expect(onSettled).not.toHaveBeenCalled();
-    expect(el.scrollIntoView).toHaveBeenCalledTimes(3);
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(200);
+    expect(el.scrollIntoView).toHaveBeenCalledOnce();
+    expect(el.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
     expect(onSettled).toHaveBeenCalledOnce();
     expect(disconnected).toBe(true);
   });
@@ -59,7 +60,7 @@ describe('followScrollTo', () => {
     resize();
     vi.advanceTimersByTime(5000);
     expect(onSettled).not.toHaveBeenCalled();
-    expect(el.scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(el.scrollIntoView).not.toHaveBeenCalled();
   });
 
   it('gives up after maxMs even if the content keeps changing', () => {

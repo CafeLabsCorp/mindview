@@ -96,8 +96,20 @@ export default function TerminalHost() {
           return next;
         });
       };
+      // The balloon coming forward (Ctrl+`, or a click on its window) puts
+      // the keyboard in the terminal — not on whatever button was clicked
+      // last, like ⊤ (v0.2.1 retest, R.3). xterm reads keys from its hidden
+      // helper textarea.
+      const focusTerminal = () => {
+        const input = shells.current.get(id)?.querySelector<HTMLTextAreaElement>('textarea.xterm-helper-textarea');
+        if (input && p.win.document.activeElement !== input) input.focus();
+      };
       p.win.addEventListener('pagehide', rescue);
-      cleanups.push(() => p.win.removeEventListener('pagehide', rescue));
+      p.win.addEventListener('focus', focusTerminal);
+      cleanups.push(() => {
+        p.win.removeEventListener('pagehide', rescue);
+        p.win.removeEventListener('focus', focusTerminal);
+      });
     }
     return () => cleanups.forEach((c) => c());
   }, [popouts, parking]);

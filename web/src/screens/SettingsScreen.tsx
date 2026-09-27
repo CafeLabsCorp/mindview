@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { TerminalChrome } from '../components/TerminalChrome';
+import { ColorInput } from '../components/ColorInput';
 import { useSettings, FALLBACK_SETTINGS } from '../context/SettingsContext';
 import { useApi } from '../hooks/useApi';
 import { useBumpAppState } from '../context/AppStateEvents';
@@ -63,18 +64,14 @@ export function SettingsScreen({ section }: { section?: string | null }) {
               <label>{t('settings.accent')}</label>
               <span className="hint">{t('settings.accentHint')}</span>
             </div>
-            <input type="color" value={settings.accent} onChange={(e) => update({ accent: e.target.value })} />
+            <ColorInput value={settings.accent} onCommit={(c) => update({ accent: c })} />
           </div>
           <div className="settings-row">
             <div>
               <label>{t('settings.linkColor')}</label>
               <span className="hint">{t('settings.linkColorHint')}</span>
             </div>
-            <input
-              type="color"
-              value={settings.linkColorOverride ?? settings.accent}
-              onChange={(e) => update({ linkColorOverride: e.target.value })}
-            />
+            <ColorInput value={settings.linkColorOverride ?? settings.accent} onCommit={(c) => update({ linkColorOverride: c })} />
           </div>
           <div className="settings-row">
             <label>{t('settings.theme')}</label>
@@ -556,7 +553,7 @@ function TagColorsSection() {
           const contrast = chosen ? checkTagColorContrast(chosen, fg, bg) : null;
           return (
             <div key={tag} className="tag-color-row">
-              <input type="color" value={chosen ?? toHex(fg)} onChange={(e) => update({ tagColors: { [tag]: e.target.value } })} />
+              <ColorInput value={chosen ?? toHex(fg)} onCommit={(c) => update({ tagColors: { [tag]: c } })} />
               <span>#{tag}</span>
               <span className="tag-color-count">{count}</span>
               {contrast && !contrast.vsBg.passes && (
@@ -608,7 +605,7 @@ function ExtColorsSection() {
           const chosen = settings.extColors[ext];
           return (
             <div key={ext || '(none)'} className="tag-color-row">
-              <input type="color" value={chosen ?? grey} onChange={(e) => update({ extColors: { [ext]: e.target.value } })} />
+              <ColorInput value={chosen ?? grey} onCommit={(c) => update({ extColors: { [ext]: c } })} />
               <span className="mono">{ext ? `.${ext}` : t('graph.noExt')}</span>
               <span className="tag-color-count">{count}</span>
               {chosen && (

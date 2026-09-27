@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api } from '../api/client';
 import type { Settings, SettingsPatch } from '../api/types';
 import { resolveLocale } from '../i18n';
@@ -66,6 +66,9 @@ function applyTokensToDom(settings: Settings): void {
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(FALLBACK_SETTINGS);
   const [loaded, setLoaded] = useState(false);
+  // Only the newest PUT's answer may land: an older one arriving late would
+  // repaint a value the user has already moved past.
+  const latestUpdate = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,15 +105,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           }
           return next;
         };
-        const optimistic = {
-          ...settings,
+        // Merged onto the CURRENT state, not the `settings` this closure
+        // captured — two quick updates must not undo each other.
+        setSettings((cur) => ({
+          ...cur,
           ...patch,
-          tagColors: merge(settings.tagColors, patch.tagColors),
-          extColors: merge(settings.extColors, patch.extColors),
-        };
-        setSettings(optimistic); // instant UI feedback
+          tagColors: merge(cur.tagColors, patch.tagColors),
+          extColors: merge(cur.extColors, patch.extColors),
+        })); // instant UI feedback
+        const mine = ++latestUpdate.current;
         const saved = await api.put<Settings>('/settings', patch);
-        setSettings(saved); // reconcile with what the server actually persisted
+        if (mine === latestUpdate.current) setSettings(saved); // reconcile with what the server persisted
       },
       reload: async () => {
         setSettings(await api.get<Settings>('/settings'));

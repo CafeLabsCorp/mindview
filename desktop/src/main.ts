@@ -3,6 +3,7 @@ import { appendFileSync, mkdirSync, renameSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { detectMode, readStoredMode, writeStoredMode, type LaunchMode } from './launchMode.js';
 import { startServer, type RunningServer } from './serverProcess.js';
+import { SPLASH_URL } from './splash.js';
 
 // MindView desktop shell — a window and nothing else. The Node server does
 // all the work as a child process; this file only starts it, points a
@@ -16,6 +17,8 @@ app.setName('MindView');
 let server: RunningServer | null = null;
 let win: BrowserWindow | null = null;
 let launchMode: LaunchMode = 'native';
+/** The server's origin once it's up; null while the splash is showing. */
+let appOrigin: string | null = null;
 
 const MAX_LOG_LINES = 800;
 const logs: string[] = [];
@@ -72,16 +75,23 @@ async function main(): Promise<void> {
   launchMode = await resolveMode();
   log(`[shell] launch mode: ${launchMode}`);
 
+  // Headless self-check (CI, WSL without WSLg) never opens a window.
+  const smoke = process.env.MINDVIEW_SMOKE === '1';
+
+  // The window comes up NOW, on the splash, and the server boots behind it
+  // — it used to be created only after the server answered, so opening the
+  // app showed nothing at all for a second or more.
+  if (!smoke) createWindow();
+
+  const started = Date.now();
   try {
     server = await startServer(launchMode, log);
   } catch (err) {
     return fatal(err, 'O backend do MindView não subiu.');
   }
-  log(`[shell] server ready at ${server.url}`);
+  log(`[shell] server ready at ${server.url} in ${Date.now() - started} ms`);
 
-  // Headless self-check: boot the server, confirm the URL, tear down. Used
-  // to smoke-test the shell where there's no display (CI, WSL without WSLg).
-  if (process.env.MINDVIEW_SMOKE === '1') {
+  if (smoke) {
     log(`[smoke] ok`);
     await server.stop();
     server = null;
@@ -89,8 +99,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  registerBridge(new URL(server.url).origin);
-  createWindow();
+  appOrigin = new URL(server.url).origin;
+  registerBridge(appOrigin);
+  // Closed during boot: window-all-closed already quit; nothing to load.
+  win?.loadURL(server.url);
 }
 
 /** Main-process side of preload.ts. Every handler checks that the call comes
@@ -169,8 +181,6 @@ async function resolveMode(): Promise<LaunchMode> {
 }
 
 function createWindow(): void {
-  const origin = new URL(server!.url).origin;
-
   win = new BrowserWindow({
     width: 1280,
     height: 860,
@@ -197,7 +207,7 @@ function createWindow(): void {
     win?.maximize();
     win?.show();
   });
-  win.loadURL(server!.url);
+  win.loadURL(SPLASH_URL);
 
   // Keep it a window, not a browser: external links open in the real
   // browser, and in-app navigation can never leave the loopback origin.
@@ -205,9 +215,11 @@ function createWindow(): void {
     if (/^https?:\/\//.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
+  // (loadURL from here doesn't fire will-navigate; only the page's own
+  // navigations do — and on the splash, before appOrigin exists, none pass.)
   win.webContents.on('will-navigate', (e, url) => {
     try {
-      if (new URL(url).origin !== origin) e.preventDefault();
+      if (!appOrigin || new URL(url).origin !== appOrigin) e.preventDefault();
     } catch {
       e.preventDefault();
     }

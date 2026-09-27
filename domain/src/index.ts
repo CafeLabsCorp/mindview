@@ -4,3 +4,4 @@ export * from './buildIndex.js';
 export * from './selectors.js';
 export * from './slugify.js';
 export * from './paths.js';
+export * from './assets.js';

@@ -11,15 +11,20 @@ const SKIP_GLOBS = [
   '**/.obsidian/**',
   '**/.trash/**',
   '**/.claude/worktrees/**',
+  '**/venv/**',
+  '**/__pycache__/**',
 ];
 
 /**
- * Watches the vault for `.md` changes and calls `onChange` once per quiet
+ * Watches the vault for file changes (markdown and assets) and calls `onChange` once per quiet
  * period. Debounce is on the *tail* (waits for a lull), not a throttle —
  * absorbs a `git pull` touching 8 files as a single reindex.
  */
 export function watchVault({ root, onChange }: VaultWatcherOptions): FSWatcher {
-  const watcher = chokidar.watch(`${root}/**/*.md`, {
+  // Every file, not just .md: PDFs/scripts are in the tree and the graph
+  // too. The glob's default (dot: false) skips hidden paths — the same rule
+  // walkAssets() uses, so the watcher and the index agree on what exists.
+  const watcher = chokidar.watch(`${root}/**/*`, {
     ignored: SKIP_GLOBS,
     // NEVER watch .git — a checkout/rebase/gc fires thousands of events.
     ignoreInitial: true,

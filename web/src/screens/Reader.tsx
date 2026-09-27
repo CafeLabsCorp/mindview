@@ -8,12 +8,34 @@ import { MarkdownBody } from '../components/MarkdownBody';
 import { TocPanel } from '../components/TocPanel';
 import { BacklinksPanel } from '../components/BacklinksPanel';
 import { NodeToolbar } from '../components/NodeToolbar';
+import { AssetViewer } from '../components/AssetViewer';
 import { useSettings } from '../context/SettingsContext';
 import { useBumpAppState } from '../context/AppStateEvents';
 import { loadTocCollapsed, saveTocCollapsed } from '../lib/tocCollapsed';
 import { useT } from '../i18n/useT';
 
+/** Markdown goes to the reader proper; any other vault file (PDF, script,
+ * image…) to the asset viewer, under the same chrome. */
 export function Reader({ path }: { path: string | null }) {
+  const t = useT();
+  if (path && !path.endsWith('.md')) {
+    return (
+      <div className="reader-screen">
+        <TerminalChrome path={`${t('chrome.root')}/${path}`} />
+        <div className="reader-layout">
+          <div className="reader-article-col">
+            <div style={{ maxWidth: 'var(--read-col)', width: '100%' }}>
+              <AssetViewer path={path} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return <NodeReader path={path} />;
+}
+
+function NodeReader({ path }: { path: string | null }) {
   const { data, loading, error } = useApi<NodeResponse>(path ? `/node?path=${encodeURIComponent(path)}` : null);
   const { data: state } = useApi<AppState>('/state');
   const { settings } = useSettings();

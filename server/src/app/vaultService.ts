@@ -7,7 +7,7 @@
 import type { FSWatcher } from 'chokidar';
 import type { VaultIndex } from '@mindview/domain';
 import { buildIndex } from '@mindview/domain';
-import { readAllMarkdown } from '../io/readAll.js';
+import { readAllMarkdown, statAllAssets } from '../io/readAll.js';
 import { watchVault } from '../io/watcher.js';
 
 export class VaultService {
@@ -18,7 +18,7 @@ export class VaultService {
 
   constructor(initialRoot: string) {
     this.root = initialRoot;
-    this._index = buildIndex(readAllMarkdown(initialRoot));
+    this._index = buildIndex(readAllMarkdown(initialRoot), statAllAssets(initialRoot));
     this.attachWatcher();
   }
 
@@ -38,7 +38,7 @@ export class VaultService {
   }
 
   reindex(): void {
-    this._index = buildIndex(readAllMarkdown(this.root));
+    this._index = buildIndex(readAllMarkdown(this.root), statAllAssets(this.root));
     for (const fn of this.listeners) fn(this._index);
   }
 
@@ -54,7 +54,7 @@ export class VaultService {
     if (newRoot === this.root) return;
     const oldWatcher = this.watcher;
     this.root = newRoot;
-    this._index = buildIndex(readAllMarkdown(newRoot));
+    this._index = buildIndex(readAllMarkdown(newRoot), statAllAssets(newRoot));
     this.attachWatcher();
     for (const fn of this.listeners) fn(this._index);
     if (oldWatcher) await oldWatcher.close();

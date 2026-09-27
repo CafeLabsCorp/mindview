@@ -2,6 +2,8 @@
 // in ../../README.md ("Camadas"). Everything below is derived from
 // (path, bytes) alone.
 
+import type { IndexedAsset } from './assets.js';
+
 export type NodeKind = 'mind-node' | 'engine-doc' | 'claude-asset';
 
 export type TaskState = 'open' | 'done' | 'paused';
@@ -91,6 +93,8 @@ export interface BacklinkEntry {
 
 export interface VaultIndex {
   nodes: Map<string, IndexedNode>;
+  /** every non-markdown file, by path — listed and linkable, never parsed */
+  assets: Map<string, IndexedAsset>;
   backlinks: Map<string, BacklinkEntry[]>;
   tagSet: Set<string>;
   builtAt: number;

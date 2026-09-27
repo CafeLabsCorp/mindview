@@ -410,6 +410,7 @@ export function GraphScreen() {
             onReset={resetPrefs}
             nodeCount={model.nodes.length}
             edgeCount={model.edges.length}
+            extCounts={model.extCounts}
           />
         )}
 

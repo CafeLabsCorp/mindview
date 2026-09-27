@@ -110,6 +110,8 @@
     "searchPlaceholder": "buscar arquivos…  (tag:, path:)",
     "tagsAsNodes": "tags como nós",
     "orphans": "órfãos",
+    "fileTypes": "Tipos de arquivo",
+    "noExt": "(sem extensão)",
     "groupsHint": "Cor por termo de busca. Ex.:",
     "groupColor": "cor do grupo",
     "groupQuery": "termo…",
@@ -219,5 +221,16 @@
       "notDirectory": "não existe pasta nesse caminho",
       "network": "pastas de rede não são aceitas — mapeie como uma unidade (ex.: Z:) no Explorer e escolha por ela"
     }
+  },
+  "asset": {
+    "noExt": "sem extensão",
+    "openExternally": "Abrir no programa padrão",
+    "showInFolder": "Mostrar na pasta",
+    "download": "Baixar",
+    "otherDesktop": "O MindView não sabe mostrar este tipo de arquivo — abra no programa dele, ou ache ele na pasta.",
+    "otherBlocked": "O MindView não sabe mostrar este tipo de arquivo. Ele pode executar algo ao ser aberto, então não é aberto daqui — ache ele na pasta e abra você mesmo, se for essa a intenção.",
+    "otherBrowser": "O MindView não sabe mostrar este tipo de arquivo — baixe pra abrir.",
+    "tooBig": "este arquivo tem {size} — grande demais pra mostrar aqui",
+    "loadFailed": "não foi possível carregar este arquivo"
   }
 }

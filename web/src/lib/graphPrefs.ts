@@ -25,6 +25,9 @@ export interface GraphPrefs {
   search: string;
   showTags: boolean;
   showOrphans: boolean;
+  /** file extensions left out of the graph ('md' included — hiding notes
+   * to look only at attachments is allowed). Empty = everything shown. */
+  hiddenExts: string[];
   // display
   sizeByBacklinks: boolean;
   nodeSizeMul: number; // 0.5 .. 2.2
@@ -50,6 +53,7 @@ export const DEFAULT_GRAPH_PREFS: GraphPrefs = {
   search: '',
   showTags: true,
   showOrphans: true,
+  hiddenExts: [],
   sizeByBacklinks: true,
   nodeSizeMul: 1,
   tagNodeSize: 4,
@@ -70,6 +74,7 @@ export function loadGraphPrefs(): GraphPrefs {
       groups: Array.isArray(parsed.groups)
         ? parsed.groups.filter((g): g is GraphGroup => !!g && typeof g.query === 'string')
         : [],
+      hiddenExts: Array.isArray(parsed.hiddenExts) ? parsed.hiddenExts.filter((e): e is string => typeof e === 'string') : [],
     };
   } catch {
     return DEFAULT_GRAPH_PREFS;

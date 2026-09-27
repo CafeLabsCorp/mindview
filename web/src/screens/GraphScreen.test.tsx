@@ -13,9 +13,9 @@ const t = makeT('en');
 // --- fixtures --------------------------------------------------------------
 const GRAPH: VaultGraph = {
   nodes: [
-    { path: 'a.md', title: 'Alpha', tags: ['proj', 'proj/alpha'], kind: 'mind-node', isIndex: true, backlinkCount: 3 },
-    { path: 'b.md', title: 'Beta', tags: ['proj'], kind: 'mind-node', isIndex: false, backlinkCount: 1 },
-    { path: 'c.md', title: 'Gamma', tags: ['vida'], kind: 'mind-node', isIndex: false, backlinkCount: 0 },
+    { path: 'a.md', title: 'Alpha', tags: ['proj', 'proj/alpha'], kind: 'mind-node', ext: 'md', isIndex: true, backlinkCount: 3 },
+    { path: 'b.md', title: 'Beta', tags: ['proj'], kind: 'mind-node', ext: 'md', isIndex: false, backlinkCount: 1 },
+    { path: 'c.md', title: 'Gamma', tags: ['vida'], kind: 'mind-node', ext: 'md', isIndex: false, backlinkCount: 0 },
   ],
   edges: [
     { from: 'a.md', to: 'b.md' },
@@ -148,10 +148,21 @@ describe('GraphScreen', () => {
     expect(fills.every((f) => f && f !== 'var(--bg)')).toBe(true);
   });
 
-  it('lists the panels in the Aparência → Filtros → Grupos order', async () => {
+  it('lists the panels in the Aparência → Filtros → Tipos de arquivo → Grupos order', async () => {
     await renderGraph();
     const heads = [...container.querySelectorAll('.gc-section-head')].map((b) => b.textContent?.replace('▸', '').trim());
-    expect(heads).toEqual([t('graph.appearance'), t('graph.filters'), t('graph.groups')]);
+    expect(heads).toEqual([t('graph.appearance'), t('graph.filters'), t('graph.fileTypes'), t('graph.groups')]);
+  });
+
+  it('lists the vault\'s file types with counts, and unchecking one hides those nodes', async () => {
+    await renderGraph();
+    const mdToggle = [...container.querySelectorAll('.gc-check')].find((l) => l.textContent?.includes('.md'));
+    expect(mdToggle?.textContent).toMatch(/\.md\s*3/);
+    await act(async () => {
+      (mdToggle?.querySelector('input') as HTMLInputElement).click();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(JSON.parse(localStorage.getItem('mindview.graphPrefs.v2')!).hiddenExts).toEqual(['md']);
   });
 
   it('"Restaurar padrão" puts every graph pref back to its default', async () => {

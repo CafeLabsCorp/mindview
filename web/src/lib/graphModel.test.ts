@@ -5,9 +5,9 @@ import { DEFAULT_GRAPH_PREFS, type GraphPrefs } from './graphPrefs';
 
 const graph: VaultGraph = {
   nodes: [
-    { path: 'a.md', title: 'Alpha', tags: ['proj', 'proj/alpha'], kind: 'mind-node', isIndex: false, backlinkCount: 2 },
-    { path: 'b.md', title: 'Beta', tags: ['proj'], kind: 'mind-node', isIndex: false, backlinkCount: 0 },
-    { path: 'lonely.md', title: 'Lonely', tags: [], kind: 'mind-node', isIndex: false, backlinkCount: 0 },
+    { path: 'a.md', title: 'Alpha', tags: ['proj', 'proj/alpha'], kind: 'mind-node', ext: 'md', isIndex: false, backlinkCount: 2 },
+    { path: 'b.md', title: 'Beta', tags: ['proj'], kind: 'mind-node', ext: 'md', isIndex: false, backlinkCount: 0 },
+    { path: 'lonely.md', title: 'Lonely', tags: [], kind: 'mind-node', ext: 'md', isIndex: false, backlinkCount: 0 },
   ],
   edges: [{ from: 'a.md', to: 'b.md' }],
 };
@@ -114,5 +114,46 @@ describe('matchQuery', () => {
   });
   it('blank matches everything', () => {
     expect(matchQuery(n, '   ')).toBe(true);
+  });
+});
+
+describe('buildGraphModel — non-markdown files and the file-type filter', () => {
+  const withAssets: VaultGraph = {
+    nodes: [
+      { path: 'a.md', title: 'Alpha', tags: ['proj'], kind: 'mind-node', ext: 'md', isIndex: false, backlinkCount: 0 },
+      { path: 'cv.pdf', title: 'cv.pdf', tags: [], kind: 'asset', ext: 'pdf', isIndex: false, backlinkCount: 1 },
+      { path: 'run.sh', title: 'run.sh', tags: [], kind: 'asset', ext: 'sh', isIndex: false, backlinkCount: 0 },
+      { path: 'x.sh', title: 'x.sh', tags: [], kind: 'asset', ext: 'sh', isIndex: false, backlinkCount: 0 },
+    ],
+    edges: [{ from: 'a.md', to: 'cv.pdf' }],
+  };
+
+  it('counts every extension, most common first', () => {
+    const m = buildGraphModel(withAssets, prefs(), {});
+    expect(m.extCounts).toEqual([
+      { ext: 'sh', count: 2 },
+      { ext: 'md', count: 1 },
+      { ext: 'pdf', count: 1 },
+    ]);
+  });
+
+  it('draws assets dimmer than notes', () => {
+    const m = buildGraphModel(withAssets, prefs({ showTags: false }), {});
+    expect(m.nodes.find((n) => n.id === 'cv.pdf')).toMatchObject({ asset: true, ext: 'pdf', color: 'var(--subtle)' });
+    expect(m.nodes.find((n) => n.id === 'a.md')?.asset).toBe(false);
+  });
+
+  it('a hidden extension drops its nodes and their edges', () => {
+    const m = buildGraphModel(withAssets, prefs({ hiddenExts: ['pdf'], showTags: false }), {});
+    expect(m.nodes.map((n) => n.id).sort()).toEqual(['a.md', 'run.sh', 'x.sh']);
+    expect(m.edges).toHaveLength(0);
+    // the counts still describe the whole vault, so the unchecked box stays listed
+    expect(m.extCounts.find((e) => e.ext === 'pdf')?.count).toBe(1);
+  });
+
+  it('hiding .md leaves no tag node floating without its notes', () => {
+    const m = buildGraphModel(withAssets, prefs({ hiddenExts: ['md'], showTags: true }), {});
+    expect(m.nodes.some((n) => n.kind === 'tag')).toBe(false);
+    expect(m.nodes.map((n) => n.id).sort()).toEqual(['cv.pdf', 'run.sh', 'x.sh']);
   });
 });

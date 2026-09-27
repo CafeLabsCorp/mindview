@@ -101,7 +101,13 @@ function TreeRow({
         title={node.path}
       >
         <span className="caret" />
-        <span className={`kind-dot ${node.kind ?? ''}`} />
+        {node.view ? (
+          // non-markdown file: its extension as a small badge instead of the
+          // kind dot, so a PDF or a script reads as such at a glance
+          <span className={`tree-ext ${node.view}`}>{node.ext || '·'}</span>
+        ) : (
+          <span className={`kind-dot ${node.kind ?? ''}`} />
+        )}
         <span>{node.name}</span>
       </div>
     </li>

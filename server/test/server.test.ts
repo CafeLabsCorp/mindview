@@ -73,6 +73,14 @@ beforeAll(async () => {
 
   writeFileSync(join(vaultDir, 'fence-doc.md'), FENCE_FIXTURE);
   writeFileSync(join(vaultDir, 'node.md'), MIND_NODE_FIXTURE);
+  // non-markdown assets, including the two that must never run as a page
+  writeFileSync(join(vaultDir, 'cv.pdf'), '%PDF-1.4 fake');
+  writeFileSync(join(vaultDir, 'page.html'), '<script>alert(1)</script>');
+  writeFileSync(join(vaultDir, 'logo.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+  writeFileSync(join(vaultDir, 'blob.bin'), Buffer.from([0, 1, 2, 3]));
+  writeFileSync(join(vaultDir, '.env'), 'SECRET=1');
+  mkdirSync(join(vaultDir, '.tool'));
+  writeFileSync(join(vaultDir, '.tool', 'cfg.json'), '{}');
   // point config.yaml at the fixture vault *before* the server ever reads it
   mkdirSync(dataDir, { recursive: true });
   writeFileSync(join(dataDir, 'config.yaml'), `vault_path: ${vaultDir}\n`);
@@ -165,7 +173,7 @@ describe('composition root — tree and settings round-trip', () => {
     const res = await fetch(apiUrl('/tree'));
     const tree = await res.json();
     const names = tree.map((n: { name: string }) => n.name).sort();
-    expect(names).toEqual(['fence-doc.md', 'node.md']);
+    expect(names).toEqual(['blob.bin', 'cv.pdf', 'fence-doc.md', 'logo.svg', 'node.md', 'page.html']);
   });
 
   it('settings PUT persists and merges tagColors rather than replacing the whole map', async () => {
@@ -218,6 +226,58 @@ describe('composition root — a leaked token is not enough from another site', 
   it('the app page cannot be framed by another site', async () => {
     const res = await fetch(`http://127.0.0.1:${PORT}/`);
     expect(res.headers.get('x-frame-options')).toBe('DENY');
+  });
+});
+
+describe('composition root — vault assets are served, never as a page on this origin', () => {
+  const raw = (path: string) => fetch(apiUrl(`/asset/raw?path=${encodeURIComponent(path)}`));
+
+  it('a PDF is served as a PDF, inline', async () => {
+    const res = await raw('cv.pdf');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/pdf');
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(await res.text()).toBe('%PDF-1.4 fake');
+  });
+
+  it('an .html file comes back as sandboxed plain text, not HTML', async () => {
+    const res = await raw('page.html');
+    expect(res.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+    expect(res.headers.get('content-security-policy')).toMatch(/^sandbox/);
+  });
+
+  it('an .svg is an image, but sandboxed — scripts inside it cannot run on this origin', async () => {
+    const res = await raw('logo.svg');
+    expect(res.headers.get('content-type')).toBe('image/svg+xml');
+    expect(res.headers.get('content-security-policy')).toMatch(/^sandbox/);
+  });
+
+  it('an unknown type is a sandboxed download', async () => {
+    const res = await raw('blob.bin');
+    expect(res.headers.get('content-type')).toBe('application/octet-stream');
+    expect(res.headers.get('content-disposition')).toMatch(/^attachment/);
+  });
+
+  it('hidden files, markdown, traversal and unknown paths are not served', async () => {
+    for (const p of ['.env', '.tool/cfg.json', 'node.md', '../etc/passwd', 'nope.pdf']) {
+      expect((await raw(p)).status, p).toBe(404);
+    }
+  });
+
+  it('meta lists type, size and who links to it', async () => {
+    const meta = await (await fetch(apiUrl('/asset?path=cv.pdf'))).json();
+    expect(meta).toMatchObject({ path: 'cv.pdf', ext: 'pdf', view: 'pdf', size: 13, backlinks: [] });
+  });
+
+  it('os-path gives the absolute path for the desktop shell', async () => {
+    const body = await (await fetch(apiUrl('/asset/os-path?path=cv.pdf'))).json();
+    expect(body.ext).toBe('pdf');
+    expect(body.path.endsWith('cv.pdf')).toBe(true);
+  });
+
+  it('the raw route needs the token like every other /api/*', async () => {
+    const res = await fetch(`http://127.0.0.1:${PORT}/api/asset/raw?path=cv.pdf`);
+    expect(res.status).toBe(403);
   });
 });
 

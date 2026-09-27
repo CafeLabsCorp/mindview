@@ -17,6 +17,8 @@ interface Props {
   onReset: () => void;
   nodeCount: number;
   edgeCount: number;
+  /** every file extension in the vault with its count (GraphModel.extCounts) */
+  extCounts: { ext: string; count: number }[];
 }
 
 /* `id` is what the open/closed state is filed under, kept separate from the
@@ -92,7 +94,7 @@ function Slider({
   );
 }
 
-export function GraphControls({ prefs, setPref, onReset, nodeCount, edgeCount }: Props) {
+export function GraphControls({ prefs, setPref, onReset, nodeCount, edgeCount, extCounts }: Props) {
   const t = useT();
   const [collapsed, setCollapsed] = useState(loadPanelCollapsed);
   const toggleCollapsed = () =>
@@ -232,6 +234,27 @@ export function GraphControls({ prefs, setPref, onReset, nodeCount, edgeCount }:
               />
               {t('graph.orphans')}
             </label>
+          </Section>
+
+          <Section id="tipos" title="graph.fileTypes">
+            {/* Detected from the vault on every reindex — a new extension
+                shows up here on its own, checked (shown) by default. */}
+            {extCounts.map(({ ext, count }) => (
+              <label key={ext || '(none)'} className="gc-check">
+                <input
+                  type="checkbox"
+                  checked={!prefs.hiddenExts.includes(ext)}
+                  onChange={(e) =>
+                    setPref(
+                      'hiddenExts',
+                      e.target.checked ? prefs.hiddenExts.filter((x) => x !== ext) : [...prefs.hiddenExts, ext],
+                    )
+                  }
+                />
+                <span className="mono">{ext ? `.${ext}` : t('graph.noExt')}</span>
+                <span className="gc-count">{count}</span>
+              </label>
+            ))}
           </Section>
 
           <Section id="grupos" title="graph.groups" defaultOpen={false}>

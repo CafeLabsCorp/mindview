@@ -17,7 +17,7 @@
 // during `npm run dev` goes through Vite's own proxy (a same-process Node
 // hop, not a browser-granted CORS exception) — see web/vite.config.ts.
 import { createServer } from 'node:http';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -49,7 +49,8 @@ import { exportBackup, importBackup, InvalidBackupError, validateBackup } from '
 import { logUsage, noteRecentNode, noteRecentVaultPath, readState, togglePinnedNode, writeSession } from './app/stateB.js';
 import { VaultService } from './app/vaultService.js';
 import { confine, OutsideRootError } from './io/confine.js';
-import { HostPathError, toHostPath } from './io/hostPath.js';
+import { HostPathError, toDesktopPath, toHostPath } from './io/hostPath.js';
+import { assetHeaders } from './app/assetServing.js';
 import { obsidianUri, vscodeUri } from './io/externalOpen.js';
 import { generateToken, isHostAllowed, rejectUnauthorized, tokenFromRequest, tokenMatches } from './io/security.js';
 import { HttpError, readJsonBody, sendJson } from './http/respond.js';
@@ -266,6 +267,50 @@ router.post('api/backup/import', async ({ req, res }) => {
   const payload = validateBackup(body);
   importBackup(payload);
   sendJson(res, 200, { ok: true, notebookCount: payload.notebooks.length });
+});
+
+// ------------------------------------------------------------------ assets
+// Non-markdown vault files. Only paths the index knows are served (so the
+// walk's skip rules — hidden files, .git, node_modules — hold here too), and
+// every one still goes through confine() in case a symlink was swapped in
+// since the last walk. How each type is served is in app/assetServing.ts.
+
+function lookupAsset(query: URLSearchParams) {
+  const path = query.get('path');
+  if (!path) throw new HttpError(400, 'missing ?path=');
+  const asset = vaultService.index.assets.get(path);
+  if (!asset) throw new HttpError(404, 'asset not found');
+  return { asset, abs: confine(vaultService.vaultPath, path) };
+}
+
+router.get('api/asset', ({ res, query }) => {
+  const { asset } = lookupAsset(query);
+  sendJson(res, 200, { ...asset, backlinks: vaultService.index.backlinks.get(asset.path) ?? [] });
+});
+
+router.get('api/asset/raw', ({ res, query }) => {
+  const { asset, abs } = lookupAsset(query);
+  const size = statSync(abs).size;
+  res.writeHead(200, { ...assetHeaders(asset), 'content-length': String(size) });
+  const stream = createReadStream(abs);
+  stream.on('error', () => res.destroy());
+  stream.pipe(res);
+});
+
+/** For the desktop shell's "open in default app" / "show in folder": the
+ * asset's path as the OS running the shell sees it (a Windows path when the
+ * server is inside WSL). The shell decides what it may open — see
+ * desktop/src/main.ts. */
+router.get('api/asset/os-path', ({ res, query }) => {
+  const { asset, abs } = lookupAsset(query);
+  let path: string;
+  try {
+    path = toDesktopPath(abs);
+  } catch (err) {
+    if (err instanceof HostPathError) throw new HttpError(422, err.message);
+    throw err;
+  }
+  sendJson(res, 200, { path, ext: asset.ext });
 });
 
 router.get('api/open', ({ res, query }) => {

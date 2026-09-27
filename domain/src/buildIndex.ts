@@ -1,5 +1,6 @@
 import type { BacklinkEntry, IndexedNode, ParsedNode, VaultIndex } from './types.js';
 import { parseNode } from './parse.js';
+import { indexAsset, type AssetFile, type IndexedAsset } from './assets.js';
 
 export interface RawFile {
   path: string;
@@ -23,9 +24,11 @@ function excerptAround(raw: string, offset: number): string {
  * indexing would trade an unmeasurable win for a real class of stale-state
  * bugs.
  */
-export function buildIndex(files: RawFile[]): VaultIndex {
+export function buildIndex(files: RawFile[], assetFiles: AssetFile[] = []): VaultIndex {
   const start = performance.now();
   const nodes = new Map<string, IndexedNode>();
+  const assets = new Map<string, IndexedAsset>();
+  for (const a of assetFiles) assets.set(a.path, indexAsset(a));
   const tagSet = new Set<string>();
 
   for (const f of files) {
@@ -40,12 +43,14 @@ export function buildIndex(files: RawFile[]): VaultIndex {
   for (const node of nodes.values()) {
     for (const link of node.links) {
       if (!link.resolvedPath || link.outsideVault || link.external) continue;
-      if (!nodes.has(link.resolvedPath)) continue; // hanging reference, not a backlink target
+      // hanging reference, not a backlink target — a link to a PDF/script
+      // in the vault IS one (the asset viewer lists who links to it)
+      if (!nodes.has(link.resolvedPath) && !assets.has(link.resolvedPath)) continue;
       const list = backlinks.get(link.resolvedPath) ?? [];
       list.push({ fromPath: node.path, excerpt: excerptAround(node.raw, link.position.offset) });
       backlinks.set(link.resolvedPath, list);
     }
   }
 
-  return { nodes, backlinks, tagSet, builtAt: Date.now(), buildMs: performance.now() - start };
+  return { nodes, assets, backlinks, tagSet, builtAt: Date.now(), buildMs: performance.now() - start };
 }

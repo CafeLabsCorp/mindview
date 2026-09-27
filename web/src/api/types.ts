@@ -61,6 +61,16 @@ export interface Settings {
   terminalFontSize: number;
 }
 
+/** GET /api/asset — a non-markdown vault file and who links to it. */
+export interface AssetResponse {
+  path: string;
+  ext: string;
+  view: 'pdf' | 'image' | 'text' | 'other';
+  size: number;
+  mtimeMs: number;
+  backlinks: BacklinkEntry[];
+}
+
 /** GET /api/tags — every tag the vault uses, most-used first. */
 export interface TagCount {
   tag: string;

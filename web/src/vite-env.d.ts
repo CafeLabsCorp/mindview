@@ -11,5 +11,8 @@ interface Window {
    * a plain browser — every caller must feature-check it. */
   mindviewDesktop?: {
     pickFolder: () => Promise<string | null>;
+    canOpenExternally: (ext: string) => boolean;
+    openAsset: (vaultPath: string) => Promise<boolean>;
+    showAssetInFolder: (vaultPath: string) => Promise<boolean>;
   };
 }

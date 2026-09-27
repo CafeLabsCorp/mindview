@@ -9,12 +9,15 @@ const model = (nodeIds: string[], edges: [string, string][]): GraphModel => ({
     title: id,
     path: id.startsWith('tag:') ? undefined : id,
     tags: [],
+    ext: id.startsWith('tag:') ? '' : 'md',
+    asset: false,
     degree: 0,
     baseR: 6,
     color: '#fff',
   })),
   edges: edges.map(([from, to]) => ({ id: `${from} ${to}`, from, to, directed: false })),
   allTags: [],
+  extCounts: [],
 });
 
 function settle(sim: GraphSim, frames = 400) {

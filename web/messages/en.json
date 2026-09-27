@@ -110,6 +110,8 @@
     "searchPlaceholder": "search files…  (tag:, path:)",
     "tagsAsNodes": "tags as nodes",
     "orphans": "orphans",
+    "fileTypes": "File types",
+    "noExt": "(no extension)",
     "groupsHint": "Colour by search term. E.g.:",
     "groupColor": "group colour",
     "groupQuery": "term…",
@@ -219,5 +221,16 @@
       "notDirectory": "no folder at that path",
       "network": "network folders are not accepted — map it to a drive letter (e.g. Z:) in Explorer and pick that"
     }
+  },
+  "asset": {
+    "noExt": "no extension",
+    "openExternally": "Open in default app",
+    "showInFolder": "Show in folder",
+    "download": "Download",
+    "otherDesktop": "MindView can't show this type of file — open it in its own app, or find it in its folder.",
+    "otherBlocked": "MindView can't show this type of file. It could run something when opened, so it isn't opened from here — find it in its folder and open it yourself if you mean to.",
+    "otherBrowser": "MindView can't show this type of file — download it to open it.",
+    "tooBig": "this file is {size} — too big to show here",
+    "loadFailed": "could not load this file"
   }
 }

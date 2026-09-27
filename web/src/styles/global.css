@@ -1969,3 +1969,110 @@ input[type='color']::-moz-color-swatch {
   color: var(--accent);
   background: var(--surface-2);
 }
+
+/* ---------------------------------------------------------------- assets
+   Non-markdown vault files: the tree badge, the viewer, the code view. */
+.tree-row .tree-ext {
+  flex: none;
+  min-width: 22px;
+  padding: 0 3px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 14px;
+  text-align: center;
+  color: var(--subtle);
+  text-transform: lowercase;
+}
+.tree-row .tree-ext.pdf {
+  color: var(--danger);
+}
+.gc-count {
+  margin-left: auto;
+  color: var(--subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.asset-viewer h1 {
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+.asset-meta {
+  color: var(--subtle);
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+.asset-pdf {
+  display: block;
+  width: 100%;
+  height: calc(100vh - 220px);
+  min-height: 420px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.asset-image {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 220px);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.asset-note {
+  color: var(--subtle);
+  font-size: 13px;
+}
+/* Always on --code-bg (dark in both themes), so the token colours are fixed
+   rather than theme-inverted — same rule as the --on-code-* tokens. */
+.code-view {
+  margin: 0;
+  padding: 14px 16px;
+  background: var(--code-bg);
+  color: var(--on-code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  overflow: auto;
+  max-height: calc(100vh - 220px);
+  tab-size: 4;
+}
+.code-view .hljs-comment,
+.code-view .hljs-quote {
+  color: var(--on-code-subtle);
+  font-style: italic;
+}
+.code-view .hljs-keyword,
+.code-view .hljs-selector-tag,
+.code-view .hljs-built_in,
+.code-view .hljs-literal {
+  color: #c678dd;
+}
+.code-view .hljs-string,
+.code-view .hljs-regexp,
+.code-view .hljs-addition {
+  color: var(--on-code-accent);
+}
+.code-view .hljs-number,
+.code-view .hljs-symbol,
+.code-view .hljs-bullet {
+  color: #d19a66;
+}
+.code-view .hljs-title,
+.code-view .hljs-section,
+.code-view .hljs-function .hljs-title {
+  color: #61afef;
+}
+.code-view .hljs-attr,
+.code-view .hljs-attribute,
+.code-view .hljs-variable,
+.code-view .hljs-template-variable,
+.code-view .hljs-name {
+  color: #e5c07b;
+}
+.code-view .hljs-meta,
+.code-view .hljs-deletion {
+  color: #e06c75;
+}

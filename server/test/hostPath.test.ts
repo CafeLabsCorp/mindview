@@ -2,7 +2,7 @@
 // Windows path on Windows — and the server may be running inside WSL. These
 // pin the conversion rules for every shape that can arrive.
 import { describe, expect, it } from 'vitest';
-import { HostPathError, toHostPath, type HostPathEnv } from '../src/io/hostPath.js';
+import { HostPathError, toDesktopPath, toHostPath, type HostPathEnv } from '../src/io/hostPath.js';
 
 const wsl: HostPathEnv = { platform: 'linux', wslDistro: 'Ubuntu' };
 const linux: HostPathEnv = { platform: 'linux', wslDistro: null };
@@ -83,5 +83,33 @@ describe('toHostPath — native Windows', () => {
     expect(codeOf(() => toHostPath('\\Users\\x', windows))).toBe('notAbsolute');
     expect(codeOf(() => toHostPath('/home/x', windows))).toBe('notAbsolute');
     expect(codeOf(() => toHostPath('mind', windows))).toBe('notAbsolute');
+  });
+});
+
+describe('toDesktopPath — handing a server path to the Windows shell', () => {
+  it('maps /mnt/<drive> back to a drive letter', () => {
+    expect(toDesktopPath('/mnt/c/Users/felip/mind/cv.pdf', wsl)).toBe('C:\\Users\\felip\\mind\\cv.pdf');
+    expect(toDesktopPath('/mnt/d', wsl)).toBe('D:\\');
+  });
+
+  it('maps a distro path to the \\\\wsl.localhost share', () => {
+    expect(toDesktopPath('/home/felip/projetos/mind/carreira/cv.pdf', wsl)).toBe('\\\\wsl.localhost\\Ubuntu\\home\\felip\\projetos\\mind\\carreira\\cv.pdf');
+  });
+
+  it('round-trips with toHostPath', () => {
+    for (const p of ['/home/felip/mind/a b.pdf', '/mnt/c/Users/x/y.sh']) {
+      expect(toHostPath(toDesktopPath(p, wsl), wsl)).toBe(p);
+    }
+  });
+
+  it('refuses a Linux name that Windows would re-parse as a different path', () => {
+    const sneaky = '/home/felip/mind/x\\..\\..\\..\\mnt\\c\\Users\\me\\y.pdf';
+    expect(codeOf(() => toDesktopPath(sneaky, wsl))).toBe('notAbsolute');
+    expect(codeOf(() => toDesktopPath('/home/felip/mind/a:b.pdf', wsl))).toBe('notAbsolute');
+  });
+
+  it('leaves paths alone when shell and server share the host', () => {
+    expect(toDesktopPath('/home/x/a.pdf', linux)).toBe('/home/x/a.pdf');
+    expect(toDesktopPath('C:\\a\\b.pdf', windows)).toBe('C:\\a\\b.pdf');
   });
 });

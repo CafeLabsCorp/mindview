@@ -78,3 +78,21 @@ export function toHostPath(input: string, env: HostPathEnv = currentHostPathEnv(
 
   throw new HostPathError('notAbsolute', `not an absolute path: ${raw}`);
 }
+
+/** The other direction: an absolute path on this server's host, turned into
+ * one the DESKTOP shell can hand to the OS (shell.openPath / "show in
+ * folder"). The shell always runs on Windows when the server runs in WSL:
+ * /mnt/c/x becomes C:\x, anything else \\wsl.localhost\<distro>\...
+ * Outside WSL the shell and server share the host: returned as is. */
+export function toDesktopPath(absHostPath: string, env: HostPathEnv = currentHostPathEnv()): string {
+  if (env.platform === 'win32' || !env.wslDistro) return absHostPath;
+  // A Linux file name may contain \ or : — one file inside the vault named
+  // `x\..\..\mnt\c\…\y.pdf` would become a path Windows normalises
+  // somewhere else entirely. Such a name has no faithful Windows form.
+  if (/[\\:*?"<>|\x00-\x1f]/.test(absHostPath)) {
+    throw new HostPathError('notAbsolute', 'path has characters Windows cannot represent');
+  }
+  const mnt = /^\/mnt\/([a-z])(?:\/(.*))?$/.exec(absHostPath);
+  if (mnt) return `${mnt[1].toUpperCase()}:\\${(mnt[2] ?? '').replace(/\//g, '\\')}`;
+  return `\\\\wsl.localhost\\${env.wslDistro}${absHostPath.replace(/\//g, '\\')}`;
+}

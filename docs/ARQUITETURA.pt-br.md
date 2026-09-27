@@ -507,6 +507,35 @@ foi uma decisão deliberada, não um descuido:
   `\\wsl.localhost\<distro>\…` → `/…`), então caminhos digitados recebem
   o mesmo tratamento. Erros de troca de vault levam um código `vaultPath.*`
   que a UI traduz.
+- **Todo arquivo do vault, não só markdown — entregue em 2026-09-27.**
+  PDFs, scripts, imagens e o resto são varridos (`walkAssets`: arquivos e
+  pastas ocultos de fora, limite de 5000), recebem stat mas nunca são
+  parseados, e aparecem na árvore (etiqueta com a extensão), no grafo (todo
+  arquivo vira nó, mais apagado, com filtro por extensão) e no leitor
+  (`AssetViewer`: visualizador de PDF, imagem, texto com realce, ou um cartão
+  com "abrir no programa padrão" / "mostrar na pasta"). As regras de
+  segurança, da revisão que veio junto:
+  - **Nenhum arquivo do vault é servido como página nesta origem** — um
+    script na origem lê o token, e o token abre um shell.
+    `server/src/app/assetServing.ts`: `nosniff` sempre; texto de qualquer
+    tipo (inclusive fonte `.html`/`.js`) vai como `text/plain`; SVG e todo
+    tipo que não é PDF levam `Content-Security-Policy: sandbox`.
+  - **O visualizador de PDF nunca vê o token.** O JavaScript de um PDF lê a
+    própria URL, que carregava o token; a página baixa os bytes e entrega ao
+    visualizador uma URL `blob:` com o tipo forçado pra `application/pdf`.
+  - **Token vazado não basta vindo de outro site.** `/api/*` recusa
+    `Sec-Fetch-Site` diferente de same-origin e qualquer `Origin` estranho, e
+    corpo de requisição precisa ser `application/json` (sem POST "simples"
+    que escapa do preflight). A página do app manda `frame-ancestors 'none'`.
+  - **"Abrir no programa padrão" é uma allowlist** (`desktop/src/openable.ts`),
+    aplicada no processo principal sobre a extensão do caminho que o SO vai
+    receber: `shell.openPath` num `.bat`/`.lnk`/`.sh` executa. Formatos com
+    macro (`doc`/`xls`/`ppt`/`rtf`/ODF) e `svg` ficam de fora. "Mostrar na
+    pasta" vale pra tudo. O processo principal resolve caminhos via
+    `GET /api/asset/os-path` (confinado, convertido WSL→Windows, nomes Linux
+    com `\` ou `:` recusados).
+  - Links dentro de um PDF abrem no navegador de verdade
+    (`will-frame-navigate`), nunca dentro da janela do app.
 - ~~**Um terminal embutido.**~~ **Entregue em 2026-09-06 — ver §12 abaixo.**
   A fronteira de transporte mantida em aberto pra isso era exatamente o que
   faltava: o `/api/events` seguiu SSE e o terminal ganhou o próprio

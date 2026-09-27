@@ -480,6 +480,34 @@ deliberate call, not an oversight:
   server's job (`server/src/io/hostPath.ts`: `C:\…` → `/mnt/c/…`,
   `\\wsl.localhost\<distro>\…` → `/…`), so typed paths get the same
   treatment. Vault-switch errors carry a `vaultPath.*` code the UI translates.
+- **Every vault file, not just markdown — shipped 2026-09-27.** PDFs,
+  scripts, images and the rest are walked (`walkAssets`: hidden files and
+  dot-folders skipped, capped at 5000), stat-ed but never parsed, and show up
+  in the tree (extension badge), the graph (every file a node, dimmed, with a
+  per-extension filter) and the reader (`AssetViewer`: PDF viewer, image,
+  highlighted text, or a card with "open in default app" / "show in folder").
+  The security rules, from the review that shipped with it:
+  - **No vault file is ever served as a page on this origin** — a script on
+    the origin can read the token, and the token opens a shell.
+    `server/src/app/assetServing.ts`: `nosniff` everywhere; text of any kind
+    (`.html`/`.js` source included) is `text/plain`; SVG and every non-PDF
+    type carry `Content-Security-Policy: sandbox`.
+  - **The PDF viewer never sees the token.** A PDF's JavaScript can read its
+    own URL, which carried it; the page fetches the bytes and hands the viewer
+    a `blob:` URL with the type forced to `application/pdf`.
+  - **A leaked token is not enough from another site.** `/api/*` refuses
+    `Sec-Fetch-Site` other than same-origin and any foreign `Origin`, and
+    request bodies must be `application/json` (no preflight-free "simple"
+    POSTs). The app page sends `frame-ancestors 'none'`.
+  - **"Open in default app" is an allowlist** (`desktop/src/openable.ts`),
+    enforced in the main process on the extension of the path the OS will
+    get: `shell.openPath` on a `.bat`/`.lnk`/`.sh` runs it. Macro formats
+    (`doc`/`xls`/`ppt`/`rtf`/ODF) and `svg` are out. "Show in folder" works
+    for anything. The main process resolves paths through
+    `GET /api/asset/os-path` (confined, WSL→Windows converted, Linux names
+    with `\` or `:` refused).
+  - Links inside a PDF open in the real browser (`will-frame-navigate`),
+    never inside the app window.
 - ~~**An embedded terminal.**~~ **Shipped 2026-09-06 — see §12 below.**
   The transport boundary kept open for it turned out to be exactly what was
   needed: `/api/events` stayed SSE and the terminal got its own WebSocket.

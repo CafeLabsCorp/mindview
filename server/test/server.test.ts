@@ -30,6 +30,7 @@ const PORT = 4931; // arbitrary, unlikely to collide with the real dev instance'
 let vaultDir: string;
 let dataDir: string;
 let stateDir: string;
+let webDir: string;
 let child: ChildProcessWithoutNullStreams;
 let token: string;
 
@@ -70,6 +71,10 @@ beforeAll(async () => {
   vaultDir = mkdtempSync(join(tmpdir(), 'mv-vault-'));
   dataDir = mkdtempSync(join(tmpdir(), 'mv-housea-'));
   stateDir = mkdtempSync(join(tmpdir(), 'mv-houseb-'));
+  // Its own SPA shell, so serving "/" doesn't depend on web/dist having
+  // been built first (CI runs the tests before build:web).
+  webDir = mkdtempSync(join(tmpdir(), 'mv-web-'));
+  writeFileSync(join(webDir, 'index.html'), '<!doctype html><html><head></head><body></body></html>');
 
   writeFileSync(join(vaultDir, 'fence-doc.md'), FENCE_FIXTURE);
   writeFileSync(join(vaultDir, 'node.md'), MIND_NODE_FIXTURE);
@@ -96,6 +101,7 @@ beforeAll(async () => {
       MINDVIEW_PORT: String(PORT),
       MINDVIEW_DATA_DIR: dataDir,
       MINDVIEW_STATE_DIR: stateDir,
+      MINDVIEW_WEB_DIR: webDir,
     },
     detached: true, // own process group, so afterAll can kill it and any child it spawns
   });
@@ -115,7 +121,7 @@ afterAll(() => {
       child.kill('SIGTERM');
     }
   }
-  for (const dir of [vaultDir, dataDir, stateDir]) {
+  for (const dir of [vaultDir, dataDir, stateDir, webDir]) {
     try {
       rmSync(dir, { recursive: true, force: true });
     } catch {

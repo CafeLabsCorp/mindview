@@ -1,9 +1,11 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell, type IpcMainInvokeEvent } from 'electron';
-import { appendFileSync, mkdirSync, renameSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync } from 'node:fs';
+import { join, posix, win32 } from 'node:path';
 import { detectMode, readStoredMode, writeStoredMode, type LaunchMode } from './launchMode.js';
 import { startServer, type RunningServer } from './serverProcess.js';
 import { SPLASH_URL } from './splash.js';
+import { canOpenExternally } from './openable.js';
+import { stateDir } from './paths.js';
 
 // MindView desktop shell — a window and nothing else. The Node server does
 // all the work as a child process; this file only starts it, points a
@@ -125,6 +127,53 @@ function registerBridge(origin: string): void {
     });
     return canceled || filePaths.length === 0 ? null : filePaths[0];
   });
+
+  // "Open in default app" — only for the allowlist in openable.ts, checked
+  // HERE against the extension the server reports, never the page's word.
+  ipcMain.handle('mindview:open-asset', async (e, vaultPath: unknown) => {
+    if (!fromOurPage(e)) return false;
+    const target = await assetOsPath(vaultPath);
+    if (!target) return false;
+    // Check the extension the OS will actually act on, parsed from the path
+    // it will be handed — and it must agree with what the server reported.
+    const osExt = (process.platform === 'win32' ? win32 : posix).extname(target.path).slice(1).toLowerCase();
+    if (osExt !== target.ext || !canOpenExternally(osExt)) return false;
+    const error = await shell.openPath(target.path);
+    if (error) log(`[shell] openPath failed for ${target.path}: ${error}`);
+    return !error;
+  });
+
+  // "Show in folder" — any asset: it selects the file in Explorer and runs
+  // nothing.
+  ipcMain.handle('mindview:show-asset', async (e, vaultPath: unknown) => {
+    if (!fromOurPage(e)) return false;
+    const target = await assetOsPath(vaultPath);
+    if (!target) return false;
+    shell.showItemInFolder(target.path);
+    return true;
+  });
+}
+
+/** Resolves a vault-relative path to an absolute one through the server,
+ * which only answers for files in its index and confines them to the vault
+ * (and converts WSL paths for Windows). Authenticates with the per-run
+ * token the server writes to session.json in the shared state dir. */
+async function assetOsPath(vaultPath: unknown): Promise<{ path: string; ext: string } | null> {
+  if (typeof vaultPath !== 'string' || !vaultPath || !server) return null;
+  try {
+    const { token } = JSON.parse(readFileSync(join(stateDir(), 'session.json'), 'utf-8')) as { token?: unknown };
+    if (typeof token !== 'string') return null;
+    const url = new URL('api/asset/os-path', server.url);
+    url.searchParams.set('path', vaultPath);
+    url.searchParams.set('token', token);
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const body = (await res.json()) as { path?: unknown; ext?: unknown };
+    return typeof body.path === 'string' && typeof body.ext === 'string' ? { path: body.path, ext: body.ext } : null;
+  } catch (err) {
+    log(`[shell] could not resolve asset ${vaultPath}: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
 }
 
 async function resolveMode(): Promise<LaunchMode> {
@@ -223,6 +272,26 @@ function createWindow(): void {
     } catch {
       e.preventDefault();
     }
+  });
+
+  // will-navigate only sees the top frame. A link inside a PDF navigates
+  // the viewer's iframe — without this, https://evil would open INSIDE the
+  // app window (can't read the page, but a fine phishing frame). Web links
+  // go to the real browser; the PDF viewer's own frames (blob:, about:,
+  // chrome-extension:) and our origin pass; anything else is refused.
+  win.webContents.on('will-frame-navigate', (e) => {
+    if (e.isMainFrame) return;
+    let url: URL;
+    try {
+      url = new URL(e.url);
+    } catch {
+      e.preventDefault();
+      return;
+    }
+    if (appOrigin && url.origin === appOrigin) return;
+    if (url.protocol === 'blob:' || url.protocol === 'about:' || url.protocol === 'chrome-extension:') return;
+    e.preventDefault();
+    if (url.protocol === 'http:' || url.protocol === 'https:') shell.openExternal(url.toString());
   });
 
   win.on('closed', () => {

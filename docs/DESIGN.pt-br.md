@@ -87,7 +87,10 @@ Ajustes e não conseguia apagar.)
 O Ajustes lista **toda tag que o vault usa** (`GET /api/tags`, das mais
 usadas pras menos), descoberta pelo índice — não existe cadastro manual. A
 cor de uma tag pode voltar ao padrão (`null` num patch de `tagColors` remove
-a entrada). Uma cor guardada pra uma tag que não existe mais fica no
+a entrada). Tipos de arquivo (os arquivos não-markdown do vault) ganham o
+mesmo tratamento em `extColors` (`GET /api/exts`): cinza até escolher, com a
+cor aparecendo na etiqueta da árvore e no nó do grafo — que também é
+desenhado com metade da opacidade, pra anexo ser fundo e nota ser figura. Uma cor guardada pra uma tag que não existe mais fica no
 `settings.yaml`, só não aparece na lista.
 
 Verde continua reservado pra cor de destaque/sistema (botões, estados

@@ -175,6 +175,8 @@
     "tagColorsEmpty": "no tags in this vault yet — they show up here as soon as a note has `tags:` in its frontmatter",
     "tagColorReset": "default",
     "tagColorResetTitle": "back to the default colour",
+    "extColors": "File type colours",
+    "extColorsHint": "every file type found in the vault besides notes. The colour shows on the file's badge in the tree and on its node in the graph; without one, it stays grey.",
     "lowContrast": "low contrast",
     "contrastTitle": "vs bg: {bg}:1, vs fg: {fg}:1 (min. 4.5:1)",
     "options": "Options",

@@ -137,10 +137,18 @@ describe('buildGraphModel — non-markdown files and the file-type filter', () =
     ]);
   });
 
-  it('draws assets dimmer than notes', () => {
-    const m = buildGraphModel(withAssets, prefs({ showTags: false }), {});
+  it('draws assets grey unless their type has a colour in Ajustes', () => {
+    const m = buildGraphModel(withAssets, prefs({ showTags: false }), {}, { sh: '#61afef' });
     expect(m.nodes.find((n) => n.id === 'cv.pdf')).toMatchObject({ asset: true, ext: 'pdf', color: 'var(--subtle)' });
+    expect(m.nodes.find((n) => n.id === 'run.sh')?.color).toBe('#61afef');
     expect(m.nodes.find((n) => n.id === 'a.md')?.asset).toBe(false);
+  });
+
+  it('an unlinked asset is as big as a note with one backlink — never the bare minimum', () => {
+    const m = buildGraphModel(withAssets, prefs({ showTags: false, sizeByBacklinks: true }), {});
+    const oneLink = 4 + Math.sqrt(1) * 2.2;
+    expect(m.nodes.find((n) => n.id === 'run.sh')?.baseR).toBeCloseTo(oneLink);
+    expect(m.nodes.find((n) => n.id === 'a.md')?.baseR).toBe(4);
   });
 
   it('a hidden extension drops its nodes and their edges', () => {

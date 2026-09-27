@@ -54,8 +54,8 @@ export function GraphScreen() {
   }, []);
 
   const model = useMemo(
-    () => (data ? buildGraphModel(data, prefs, settings.tagColors) : null),
-    [data, prefs, settings.tagColors],
+    () => (data ? buildGraphModel(data, prefs, settings.tagColors, settings.extColors) : null),
+    [data, prefs, settings.tagColors, settings.extColors],
   );
 
   // --- sim + render loop -------------------------------------------------
@@ -366,7 +366,9 @@ export function GraphScreen() {
                         read as "invisible"), so the ring is what tells the
                         two kinds apart at a glance. */}
                     {n.kind === 'tag' && <circle className="graph-tag-ring" r={r + 3} stroke={n.color} />}
-                    <circle className="graph-node-dot" r={r} fill={n.color} />
+                    {/* attachments are drawn dimmer than notes — same size
+                        floor, lower opacity (see graphModel's ASSET) */}
+                    <circle className="graph-node-dot" r={r} fill={n.color} fillOpacity={n.asset ? 0.5 : undefined} />
                     {(n.present || labelOp > 0.02) && (
                       <text
                         className="graph-node-label"

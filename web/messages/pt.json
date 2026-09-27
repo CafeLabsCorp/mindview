@@ -175,6 +175,8 @@
     "tagColorsEmpty": "nenhuma tag neste vault ainda — elas aparecem aqui assim que um nó tiver `tags:` no frontmatter",
     "tagColorReset": "padrão",
     "tagColorResetTitle": "voltar pra cor padrão",
+    "extColors": "Cores dos tipos de arquivo",
+    "extColorsHint": "todo tipo de arquivo do vault além das notas. A cor aparece na etiqueta do arquivo na árvore e no nó dele no grafo; sem cor escolhida, fica cinza.",
     "lowContrast": "contraste baixo",
     "contrastTitle": "vs bg: {bg}:1, vs fg: {fg}:1 (mín. 4.5:1)",
     "options": "Opções",

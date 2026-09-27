@@ -16,6 +16,10 @@ export interface Settings {
   colWidth: number;
   lineHeight: number;
   tagColors: Record<string, string>;
+  /** Colour per non-markdown file extension ('pdf' → '#f0655c'), for the
+   * tree badge and the graph node. Same rules as tagColors: only what the
+   * user picked; an extension without one stays grey. */
+  extColors: Record<string, string>;
   frontmatterPretty: boolean;
   tocEnabled: boolean;
   recentPinnedEnabled: boolean;
@@ -57,6 +61,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // Ajustes, and could never delete them. Tags are now discovered from the
   // vault (GET /api/tags); this map only holds colours the user picked.
   tagColors: {},
+  extColors: {},
   frontmatterPretty: true,
   tocEnabled: true,
   recentPinnedEnabled: true,
@@ -132,7 +137,7 @@ function sanitizeTerminal(s: Settings): Settings {
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
-/** Applies a tagColors patch: a hex string sets a tag's colour, `null`
+/** Applies a tagColors (or extColors) patch: a hex string sets a colour, `null`
  * removes it (back to the default), anything else is ignored — the map is
  * written by an HTTP endpoint and lands in a hand-editable YAML file. */
 export function mergeTagColors(current: Record<string, string>, patch: unknown): Record<string, string> {
@@ -151,7 +156,12 @@ export function readSettings(): Settings {
   if (!raw) return DEFAULT_SETTINGS;
   try {
     const parsed = parseYaml(raw) ?? {};
-    return sanitizeTerminal({ ...DEFAULT_SETTINGS, ...parsed, tagColors: { ...DEFAULT_SETTINGS.tagColors, ...(parsed.tagColors ?? {}) } });
+    return sanitizeTerminal({
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      tagColors: { ...DEFAULT_SETTINGS.tagColors, ...(parsed.tagColors ?? {}) },
+      extColors: mergeTagColors({}, parsed.extColors),
+    });
   } catch (err) {
     console.error('[houseA] settings.yaml failed to parse, operating read-only on it, using defaults:', err);
     return DEFAULT_SETTINGS;

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSettings } from '../context/SettingsContext';
 import type { TreeNode } from '../api/types';
 import { navigate } from '../lib/hashRoute';
 import { getPersistedOpen, setPersistedOpen } from '../lib/treeOpenState';
@@ -104,12 +105,24 @@ function TreeRow({
         {node.view ? (
           // non-markdown file: its extension as a small badge instead of the
           // kind dot, so a PDF or a script reads as such at a glance
-          <span className={`tree-ext ${node.view}`}>{node.ext || '·'}</span>
+          <ExtBadge ext={node.ext ?? ''} />
         ) : (
           <span className={`kind-dot ${node.kind ?? ''}`} />
         )}
         <span>{node.name}</span>
       </div>
     </li>
+  );
+}
+
+/** A file's extension as a small badge, in the colour picked for that type
+ * in Ajustes (grey when none). */
+function ExtBadge({ ext }: { ext: string }) {
+  const { settings } = useSettings();
+  const color = settings.extColors[ext];
+  return (
+    <span className="tree-ext" style={color ? { color, borderColor: color } : undefined}>
+      {ext || '·'}
+    </span>
   );
 }

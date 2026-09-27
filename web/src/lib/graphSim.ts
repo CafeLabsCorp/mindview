@@ -39,6 +39,8 @@ export interface SimNode extends SimulationNodeDatum {
   degree: number;
   baseR: number;
   color: string;
+  /** non-markdown file — drawn dimmer */
+  asset: boolean;
   /** 0 → 1 linear presence; render eases it. Exiting nodes ride it back to 0. */
   p: number;
   present: boolean;
@@ -233,6 +235,7 @@ export class GraphSim {
         cur.degree = m.degree;
         cur.baseR = m.baseR;
         cur.color = m.color;
+        cur.asset = m.asset;
         cur.present = true;
       } else {
         this.nodes.set(m.id, {
@@ -245,6 +248,7 @@ export class GraphSim {
           degree: m.degree,
           baseR: m.baseR,
           color: m.color,
+          asset: m.asset,
           p: 0,
           present: true,
           revealIn: 0,

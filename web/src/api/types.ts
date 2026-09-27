@@ -49,6 +49,7 @@ export interface Settings {
   colWidth: number;
   lineHeight: number;
   tagColors: Record<string, string>;
+  extColors: Record<string, string>;
   frontmatterPretty: boolean;
   tocEnabled: boolean;
   recentPinnedEnabled: boolean;
@@ -77,9 +78,18 @@ export interface TagCount {
   count: number;
 }
 
-/** What `update()` sends: like Settings, except a tagColors entry may be
- * `null`, which removes that tag's colour (back to the default). */
-export type SettingsPatch = Omit<Partial<Settings>, 'tagColors'> & { tagColors?: Record<string, string | null> };
+/** What `update()` sends: like Settings, except a tagColors / extColors
+ * entry may be `null`, which removes that colour (back to the default). */
+export type SettingsPatch = Omit<Partial<Settings>, 'tagColors' | 'extColors'> & {
+  tagColors?: Record<string, string | null>;
+  extColors?: Record<string, string | null>;
+};
+
+/** GET /api/exts — every non-markdown extension in the vault. */
+export interface ExtCount {
+  ext: string;
+  count: number;
+}
 
 export interface ShellOption {
   label: string;

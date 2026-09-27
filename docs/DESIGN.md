@@ -84,7 +84,10 @@ which every new install then saw in Ajustes and could not delete.)
 Ajustes lists **every tag the vault uses** (`GET /api/tags`, most-used
 first), discovered from the index — there is nothing to register by hand.
 A tag's colour can be reset to the default (`null` in a `tagColors` patch
-removes the entry). A colour stored for a tag that no longer exists stays in
+removes the entry). File types (the vault's non-markdown files) get the same
+treatment in `extColors` (`GET /api/exts`): grey until picked, the colour
+showing on the tree badge and the graph node — which is also drawn at half
+opacity, so attachments stay the ground and notes the figure. A colour stored for a tag that no longer exists stays in
 `settings.yaml`, just not listed.
 
 Green is still reserved for the accent/system color (buttons, active

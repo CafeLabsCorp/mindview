@@ -1971,9 +1971,6 @@ body.is-dragging-tab * {
   color: var(--subtle);
   text-transform: lowercase;
 }
-.tree-row .tree-ext.pdf {
-  color: var(--danger);
-}
 .gc-count {
   margin-left: auto;
   color: var(--subtle);

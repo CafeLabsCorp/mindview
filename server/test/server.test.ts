@@ -302,6 +302,15 @@ describe('composition root — tags are discovered from the vault, colours are o
     expect(after.tagColors).not.toHaveProperty('apagar');
   });
 
+  it('lists the vault\'s file extensions with counts, and colours them like tags', async () => {
+    const exts = await (await fetch(apiUrl('/exts'))).json();
+    expect(exts.map((e: { ext: string }) => e.ext).sort()).toEqual(['bin', 'html', 'pdf', 'svg']);
+    const after = await (await putSettings({ extColors: { pdf: '#f0655c', bad: 'red' } })).json();
+    expect(after.extColors).toEqual({ pdf: '#f0655c' });
+    const reset = await (await putSettings({ extColors: { pdf: null } })).json();
+    expect(reset.extColors).toEqual({});
+  });
+
   it('ignores colours that are not #rrggbb', async () => {
     const after = await (await putSettings({ tagColors: { lixo: 'red; background:url(x)', num: 42 } })).json();
     expect(after.tagColors).not.toHaveProperty('lixo');

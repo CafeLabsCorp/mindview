@@ -4,7 +4,7 @@ import { useSettings, FALLBACK_SETTINGS } from '../context/SettingsContext';
 import { useApi } from '../hooks/useApi';
 import { useBumpAppState } from '../context/AppStateEvents';
 import { api, ApiError } from '../api/client';
-import type { ConfigResponse, TagCount, TerminalShellsResponse } from '../api/types';
+import type { ConfigResponse, ExtCount, TagCount, TerminalShellsResponse } from '../api/types';
 import { checkTagColorContrast } from '../lib/contrast';
 import { useThemeColors } from '../lib/useThemeColors';
 import { vaultErrorMessage } from '../lib/vaultError';
@@ -160,6 +160,7 @@ export function SettingsScreen() {
         </section>
 
         <TagColorsSection />
+        <ExtColorsSection />
 
         <section className="settings-group">
           <h3>{t('settings.options')}</h3>
@@ -562,6 +563,47 @@ function TagColorsSection() {
                   className="btn btn-ghost btn-sm tag-color-reset"
                   title={t('settings.tagColorResetTitle')}
                   onClick={() => update({ tagColors: { [tag]: null } })}
+                >
+                  {t('settings.tagColorReset')}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// Colour per file type (PDFs, scripts…), for the tree badge and the graph
+// node. Lists only the extensions the vault actually has (GET /api/exts);
+// an extension without a chosen colour stays grey.
+function ExtColorsSection() {
+  const t = useT();
+  const { settings, update } = useSettings();
+  const { data: exts } = useApi<ExtCount[]>('/exts');
+  if (!exts || exts.length === 0) return null;
+  const grey = toHex(getComputedStyle(document.documentElement).getPropertyValue('--subtle'));
+
+  return (
+    <section className="settings-group">
+      <h3>{t('settings.extColors')}</h3>
+      <span className="hint" style={{ display: 'block', marginBottom: 10 }}>
+        {t('settings.extColorsHint')}
+      </span>
+      <div className="tag-color-grid">
+        {exts.map(({ ext, count }) => {
+          const chosen = settings.extColors[ext];
+          return (
+            <div key={ext || '(none)'} className="tag-color-row">
+              <input type="color" value={chosen ?? grey} onChange={(e) => update({ extColors: { [ext]: e.target.value } })} />
+              <span className="mono">{ext ? `.${ext}` : t('graph.noExt')}</span>
+              <span className="tag-color-count">{count}</span>
+              {chosen && (
+                <button
+                  className="btn btn-ghost btn-sm tag-color-reset"
+                  title={t('settings.tagColorResetTitle')}
+                  onClick={() => update({ extColors: { [ext]: null } })}
                 >
                   {t('settings.tagColorReset')}
                 </button>

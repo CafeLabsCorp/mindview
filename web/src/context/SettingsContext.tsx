@@ -13,6 +13,7 @@ export const FALLBACK_SETTINGS: Settings = {
   colWidth: 680,
   lineHeight: 1.75,
   tagColors: {},
+  extColors: {},
   frontmatterPretty: true,
   tocEnabled: true,
   recentPinnedEnabled: true,
@@ -93,12 +94,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       settings,
       loaded,
       update: async (patch) => {
-        const tagColors = { ...settings.tagColors };
-        for (const [tag, color] of Object.entries(patch.tagColors ?? {})) {
-          if (color === null) delete tagColors[tag];
-          else tagColors[tag] = color;
-        }
-        const optimistic = { ...settings, ...patch, tagColors };
+        const merge = (current: Record<string, string>, p: Record<string, string | null> | undefined) => {
+          const next = { ...current };
+          for (const [k, color] of Object.entries(p ?? {})) {
+            if (color === null) delete next[k];
+            else next[k] = color;
+          }
+          return next;
+        };
+        const optimistic = {
+          ...settings,
+          ...patch,
+          tagColors: merge(settings.tagColors, patch.tagColors),
+          extColors: merge(settings.extColors, patch.extColors),
+        };
         setSettings(optimistic); // instant UI feedback
         const saved = await api.put<Settings>('/settings', patch);
         setSettings(saved); // reconcile with what the server actually persisted

@@ -1278,6 +1278,25 @@ input[type='color']::-moz-color-swatch {
   color: var(--fg);
   font-weight: 600;
 }
+/* Ajustes: the section a #/ajustes/<section> link scrolled to. */
+.section-flash {
+  animation: section-flash 1.8s ease-in-out;
+}
+@keyframes section-flash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  30%,
+  60% {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .section-flash {
+    animation-duration: 0.01s;
+  }
+}
 .range-value {
   display: inline-block;
   min-width: 6.5ch;

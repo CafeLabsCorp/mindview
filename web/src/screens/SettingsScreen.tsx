@@ -39,9 +39,17 @@ export function SettingsScreen({ section }: { section?: string | null }) {
 
   useEffect(() => {
     if (!section) return;
-    const id = requestAnimationFrame(() =>
-      document.getElementById(`settings-${section}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-    );
+    const id = requestAnimationFrame(() => {
+      const el = document.getElementById(`settings-${section}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // A green border that fades in and out, so the eye lands on the
+      // section the scroll brought up (Felipe, v0.2.1 retest).
+      el.classList.remove('section-flash');
+      void el.offsetWidth; // restart the animation if it's already there
+      el.classList.add('section-flash');
+      el.addEventListener('animationend', () => el.classList.remove('section-flash'), { once: true });
+    });
     return () => cancelAnimationFrame(id);
   }, [section]);
 

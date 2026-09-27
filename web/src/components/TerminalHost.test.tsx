@@ -217,6 +217,15 @@ describe('balloons', () => {
     expect(views()).toHaveLength(0);
   });
 
+  it('turning the terminal off ends every session and closes every balloon', async () => {
+    render();
+    await popOutFirst();
+    terminalEnabled = false;
+    render();
+    expect(opened[0].closed).toBe(true);
+    expect(dock.sessions.tabs).toHaveLength(0);
+  });
+
   it('popping out a session that already floats just focuses its balloon', async () => {
     render();
     await popOutFirst();

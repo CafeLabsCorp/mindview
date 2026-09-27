@@ -10,6 +10,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTerminalSessions, type TerminalSessions } from '../lib/terminalSessions';
 import { openPopoutWindow, syncRootAttributes, type PopoutPosition } from '../lib/popoutWindow';
+import { useSettings } from './SettingsContext';
 
 export interface Popout {
   win: Window;
@@ -102,6 +103,17 @@ export function TerminalDockProvider({ children }: { children: ReactNode }) {
     setStarted(true);
     if (sessionsRef.current.tabs.length === 0) sessionsRef.current.open();
   }, []);
+
+  // Turning the terminal off in Ajustes ends every session and closes every
+  // balloon — a balloon left open used to outlive the setting (v0.2.1
+  // retest, R.6). The host unmounts too (App), which is what kills the shells.
+  const { settings } = useSettings();
+  const enabled = settings.terminalEnabled;
+  useEffect(() => {
+    if (enabled) return;
+    for (const p of popoutsRef.current.values()) p.win.close();
+    if (sessionsRef.current.tabs.length > 0) sessionsRef.current.closeAll();
+  }, [enabled]);
 
   // A session that ends while floating takes its balloon with it.
   useEffect(() => {

@@ -1,5 +1,7 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
+import { join } from 'node:path';
 import { get as httpGet } from 'node:http';
 import { resolveShellPaths, stateDir } from './paths.js';
 import type { LaunchMode } from './launchMode.js';
@@ -17,16 +19,53 @@ export interface RunningServer {
 
 const isWindows = process.platform === 'win32';
 
-function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
+/** Binds `port` (0 = any) on loopback and releases it; resolves with the
+ * port actually bound, or null if it was taken. */
+function tryPort(port: number): Promise<number | null> {
+  return new Promise((resolve) => {
     const srv = createServer();
-    srv.once('error', reject);
-    srv.listen(0, '127.0.0.1', () => {
+    srv.once('error', () => resolve(null));
+    srv.listen(port, '127.0.0.1', () => {
       const addr = srv.address();
-      const port = typeof addr === 'object' && addr ? addr.port : 0;
-      srv.close(() => resolve(port));
+      const bound = typeof addr === 'object' && addr ? addr.port : 0;
+      srv.close(() => resolve(bound || null));
     });
   });
+}
+
+// The port is part of the page's origin, and the origin is what localStorage
+// is keyed by — graph prefs, panel drawers, tree state, everything per-view.
+// A fresh random port on every launch meant a fresh, empty localStorage on
+// every launch: settings "not saving", the graph panel always open. So the
+// port is picked once and reused; only if it's taken do we move (and that
+// one move costs the saved view state, once).
+const PORT_FILE = () => join(stateDir(), 'port.json');
+
+function readStoredPort(): number | null {
+  try {
+    const { port } = JSON.parse(readFileSync(PORT_FILE(), 'utf-8')) as { port?: unknown };
+    return typeof port === 'number' && Number.isInteger(port) && port > 1024 && port < 65536 ? port : null;
+  } catch {
+    return null;
+  }
+}
+
+function storePort(port: number): void {
+  try {
+    writeFileSync(PORT_FILE(), JSON.stringify({ port }), { mode: 0o600 });
+  } catch {
+    /* next launch just picks again */
+  }
+}
+
+async function choosePort(avoid: number | null, onLog: (line: string) => void): Promise<number> {
+  const stored = readStoredPort();
+  if (stored && stored !== avoid && (await tryPort(stored))) return stored;
+  const fresh = await tryPort(0);
+  if (!fresh) throw new Error('no free loopback port');
+  if (stored) onLog(`[shell] port ${stored} unavailable, moving to ${fresh} (saved view state resets once)`);
+  storePort(fresh);
+  return fresh;
 }
 
 /** Turn a Windows path into one WSL can open (`C:\a\b` -> `/mnt/c/a/b`). */
@@ -66,8 +105,22 @@ function waitUntilReady(port: number, timeoutMs: number): Promise<void> {
 }
 
 export async function startServer(mode: LaunchMode, onLog: (line: string) => void): Promise<RunningServer> {
+  const port = await choosePort(null, onLog);
+  try {
+    return await startServerOn(port, mode, onLog);
+  } catch (err) {
+    // The Windows-side probe can say "free" while something inside WSL
+    // holds the port (localhost forwarding). One retry on a fresh port.
+    if (!(err instanceof EarlyExitError)) throw err;
+    onLog(`[shell] server on :${port} exited early (${err.message}); retrying on a fresh port`);
+    return startServerOn(await choosePort(port, onLog), mode, onLog);
+  }
+}
+
+class EarlyExitError extends Error {}
+
+async function startServerOn(port: number, mode: LaunchMode, onLog: (line: string) => void): Promise<RunningServer> {
   const paths = resolveShellPaths();
-  const port = await freePort();
   const data = stateDir();
 
   let child: ChildProcess;
@@ -101,7 +154,7 @@ export async function startServer(mode: LaunchMode, onLog: (line: string) => voi
   child.stderr?.on('data', (d: Buffer) => onLog(`[server:err] ${d.toString().trimEnd()}`));
 
   const exited = new Promise<never>((_, reject) => {
-    child.once('exit', (code, signal) => reject(new Error(`server exited early (code ${code}, signal ${signal})`)));
+    child.once('exit', (code, signal) => reject(new EarlyExitError(`server exited early (code ${code}, signal ${signal})`)));
     child.once('error', (err) => reject(new Error(`could not spawn server: ${err.message}`)));
   });
 

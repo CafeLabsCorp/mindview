@@ -37,6 +37,7 @@ import {
   deleteNotebook,
   getNotebook,
   listNotebooks,
+  mergeTagColors,
   readConfig,
   readSettings,
   removeNodeFromNotebook,
@@ -137,6 +138,18 @@ router.get('api/graph', ({ res }) => {
   sendJson(res, 200, buildGraph(vaultService.index));
 });
 
+// Every tag the vault actually uses, with how many nodes carry it — what
+// Ajustes lists for colouring. Discovered from the index, never registered
+// by hand; a colour stored for a tag that no longer exists just isn't shown.
+router.get('api/tags', ({ res }) => {
+  const counts = new Map<string, number>();
+  for (const node of vaultService.index.nodes.values()) {
+    for (const tag of node.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  }
+  const tags = [...counts].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+  sendJson(res, 200, tags);
+});
+
 router.get('api/settings', ({ res }) => {
   sendJson(res, 200, readSettings());
 });
@@ -144,7 +157,7 @@ router.get('api/settings', ({ res }) => {
 router.put('api/settings', async ({ req, res }) => {
   const patch = await readJsonBody<Partial<Settings>>(req);
   const current = readSettings();
-  const merged: Settings = { ...current, ...patch, tagColors: { ...current.tagColors, ...(patch.tagColors ?? {}) } };
+  const merged: Settings = { ...current, ...patch, tagColors: mergeTagColors(current.tagColors, patch.tagColors) };
   writeSettings(merged);
   // Read back rather than echoing the merge: readSettings() coerces the
   // terminal fields to their declared types (see sanitizeTerminal), so the

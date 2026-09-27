@@ -51,20 +51,12 @@ export const DEFAULT_SETTINGS: Settings = {
   readSize: 15.5,
   colWidth: 680,
   lineHeight: 1.75,
-  tagColors: {
-    cafelabs: '#3fb950',
-    tarefas: '#5b9eea',
-    projetos: '#e0913a',
-    dindin: '#a78bfa',
-    mind: '#45b8c4',
-    design: '#e685b5',
-    infra: '#e0913a',
-    legal: '#f0655c',
-    lgpd: '#f0655c',
-    financeiro: '#8a7226',
-    marketing: '#e685b5',
-    distribuicao: '#e0913a',
-  },
+  // Empty on purpose. This used to ship the vault owner's own tags
+  // (cafelabs, dindin, tarefas…), and readSettings() merges the defaults
+  // into every read — so every new install saw someone else's tags in
+  // Ajustes, and could never delete them. Tags are now discovered from the
+  // vault (GET /api/tags); this map only holds colours the user picked.
+  tagColors: {},
   frontmatterPretty: true,
   tocEnabled: true,
   recentPinnedEnabled: true,
@@ -136,6 +128,21 @@ function sanitizeTerminal(s: Settings): Settings {
     terminalMode: s.terminalMode === 'shell' ? 'shell' : 'command',
     terminalFontSize: Number.isFinite(s.terminalFontSize) ? Math.min(32, Math.max(8, Number(s.terminalFontSize))) : DEFAULT_SETTINGS.terminalFontSize,
   };
+}
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/** Applies a tagColors patch: a hex string sets a tag's colour, `null`
+ * removes it (back to the default), anything else is ignored — the map is
+ * written by an HTTP endpoint and lands in a hand-editable YAML file. */
+export function mergeTagColors(current: Record<string, string>, patch: unknown): Record<string, string> {
+  const next = { ...current };
+  if (!patch || typeof patch !== 'object') return next;
+  for (const [tag, color] of Object.entries(patch as Record<string, unknown>)) {
+    if (color === null) delete next[tag];
+    else if (typeof color === 'string' && HEX_COLOR.test(color)) next[tag] = color;
+  }
+  return next;
 }
 
 export function readSettings(): Settings {

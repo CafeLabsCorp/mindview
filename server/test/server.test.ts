@@ -183,6 +183,28 @@ describe('composition root — tree and settings round-trip', () => {
   });
 });
 
+describe('composition root — tags are discovered from the vault, colours are only what the user picked', () => {
+  const putSettings = (body: unknown) =>
+    fetch(apiUrl('/settings'), { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+
+  it('lists the tags the vault uses, with counts', async () => {
+    const tags = await (await fetch(apiUrl('/tags'))).json();
+    expect(tags).toEqual([{ tag: 'teste', count: 1 }]);
+  });
+
+  it('a null colour removes the tag from the map (back to the default)', async () => {
+    await putSettings({ tagColors: { apagar: '#abcdef' } });
+    const after = await (await putSettings({ tagColors: { apagar: null } })).json();
+    expect(after.tagColors).not.toHaveProperty('apagar');
+  });
+
+  it('ignores colours that are not #rrggbb', async () => {
+    const after = await (await putSettings({ tagColors: { lixo: 'red; background:url(x)', num: 42 } })).json();
+    expect(after.tagColors).not.toHaveProperty('lixo');
+    expect(after.tagColors).not.toHaveProperty('num');
+  });
+});
+
 describe('composition root — vault switch errors carry a translatable code', () => {
   const putVault = (vaultPath: string) =>
     fetch(apiUrl('/config'), {

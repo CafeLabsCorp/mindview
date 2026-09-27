@@ -68,17 +68,6 @@ async function choosePort(avoid: number | null, onLog: (line: string) => void): 
   return fresh;
 }
 
-/** Turn a Windows path into one WSL can open (`C:\a\b` -> `/mnt/c/a/b`). */
-function toWslPath(winPath: string): string {
-  const r = spawnSync('wsl.exe', ['-e', 'wslpath', '-a', winPath], { encoding: 'utf-8', windowsHide: true });
-  if (r.status !== 0) {
-    throw new Error(`wslpath failed for "${winPath}" (status ${r.status}): ${(r.stderr ?? '').trim()}`);
-  }
-  const out = (r.stdout ?? '').trim();
-  if (!out) throw new Error(`wslpath returned nothing for "${winPath}"`);
-  return out;
-}
-
 function waitUntilReady(port: number, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   return new Promise((resolve, reject) => {
@@ -98,7 +87,7 @@ function waitUntilReady(port: number, timeoutMs: number): Promise<void> {
     };
     const retry = () => {
       if (Date.now() > deadline) reject(new Error(`server did not answer on :${port} within ${timeoutMs}ms`));
-      else setTimeout(tick, 250);
+      else setTimeout(tick, 50); // was 250 — up to 200 ms of pure waiting
     };
     tick();
   });
@@ -129,14 +118,18 @@ async function startServerOn(port: number, mode: LaunchMode, onLog: (line: strin
     // Run inside the distro. Every dynamic value goes in as a positional
     // bash arg ("$1".."$4") so bash never re-parses it — a path with an
     // apostrophe or `$` would detonate a interpolated command string.
+    // The Windows paths are converted by `wslpath` INSIDE this same bash:
+    // it used to be three separate `wsl.exe wslpath` round trips from
+    // Windows before the spawn (~120-150 ms each), all blocking the boot.
     const script =
-      'exec env MINDVIEW_PORT="$1" MINDVIEW_WEB_DIR="$2" MINDVIEW_DATA_DIR="$3" ' +
-      'MINDVIEW_STATE_DIR="$3" MINDVIEW_SHELL_MANAGED=1 node "$4"';
-    child = spawn(
-      'wsl.exe',
-      ['-e', 'bash', '-lc', script, 'mindview', String(port), toWslPath(paths.webDir), toWslPath(data), toWslPath(paths.serverEntry)],
-      { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
-    );
+      'web=$(wslpath -a "$2") && data=$(wslpath -a "$3") && entry=$(wslpath -a "$4") ' +
+      '|| { echo "wslpath failed converting the shell paths" >&2; exit 97; }; ' +
+      'exec env MINDVIEW_PORT="$1" MINDVIEW_WEB_DIR="$web" MINDVIEW_DATA_DIR="$data" ' +
+      'MINDVIEW_STATE_DIR="$data" MINDVIEW_SHELL_MANAGED=1 node "$entry"';
+    child = spawn('wsl.exe', ['-e', 'bash', '-lc', script, 'mindview', String(port), paths.webDir, data, paths.serverEntry], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
   } else {
     const spawnEnv: NodeJS.ProcessEnv = {
       ...process.env,

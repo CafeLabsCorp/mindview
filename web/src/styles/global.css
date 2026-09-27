@@ -1663,47 +1663,110 @@ input[type='color']::-moz-color-swatch {
   font-family: var(--font-mono);
 }
 
-/* ------------------------------------------------- terminal panel (Fase 2)
+/* ------------------------------------------------- terminal (Fase 2)
 
-   Bottom dock, VSCode-shaped: it is a sibling of .screen-area inside
-   .main-col, so the screen above simply gets less room instead of the
-   panel floating over the content. Height is dragged and persisted per
-   browser (lib/terminalPanelState.ts), never in settings.yaml — same call
-   as navOpen / treeOpen.
+   A page of its own (2026-09-27; it used to be a VSCode-style bottom
+   panel), plus balloons: a session popped out into its own window. The
+   sessions themselves are owned by TerminalHost and MOVED between the
+   page slot, .terminal-parking and a balloon's .terminal-popout-slot.
 
-   The body keeps --code-bg (fixed dark in both themes) rather than
+   Terminal surfaces keep --code-bg (fixed dark in both themes) rather than
    --surface: a terminal on a white ground reads wrong, and the --on-code-*
    tokens exist precisely for this surface. */
 
-.terminal-panel {
-  position: relative;
-  flex-shrink: 0;
+.terminal-screen {
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
   background: var(--code-bg);
-  border-top: 1px solid var(--border);
 }
 
-.terminal-resize-handle {
+.terminal-screen-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.terminal-screen-slot {
   position: absolute;
-  top: -3px;
-  left: 0;
-  right: 0;
-  height: 7px;
-  cursor: ns-resize;
-  z-index: 2;
-  background: transparent;
+  inset: 0;
 }
 
-.terminal-resize-handle:hover,
-.terminal-resize-handle:focus-visible {
-  background: var(--accent);
-  opacity: 0.5;
-  outline: none;
+.terminal-screen-popped,
+.terminal-screen-off {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  color: var(--on-code-subtle);
+  font-size: 13px;
+}
+.terminal-screen-off {
+  position: static;
+  flex: 1;
+}
+.terminal-screen-off p {
+  max-width: 460px;
 }
 
-.terminal-panel-head {
+/* Where sessions wait while another page is open: still mounted (their
+   sockets alive), just not laid out. TerminalView refits on the way back. */
+.terminal-parking {
+  display: none;
+}
+
+/* One per session, the element TerminalHost moves around. */
+.terminal-shell {
+  position: absolute;
+  inset: 0;
+}
+
+.terminal-tab.is-popped .terminal-tab-label {
+  color: var(--on-code-subtle);
+}
+.terminal-tab-badge {
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--on-code-accent);
+}
+body.is-dragging-tab,
+body.is-dragging-tab * {
+  cursor: grabbing !important;
+}
+
+/* ------ balloon: the whole document of a popped-out session's window */
+.terminal-popout-body {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--code-bg);
+}
+.terminal-popout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.terminal-popout-title {
+  color: var(--on-code);
+  font-size: 12px;
+}
+.terminal-popout-slot {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.terminal-action.is-on {
+  color: var(--on-code-accent);
+}
+
+.terminal-panel-head,
+.terminal-popout-head {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1741,15 +1804,9 @@ input[type='color']::-moz-color-swatch {
 
 /* The head sits on --code-bg, which the ghost button's normal --fg does
    not read against in the light theme. */
-.terminal-panel-head .btn-ghost {
+.terminal-panel-head .btn-ghost,
+.terminal-popout-head .btn-ghost {
   color: var(--on-code);
-}
-
-.terminal-panel-body {
-  flex: 1;
-  min-height: 0;
-  position: relative;
-  overflow: hidden;
 }
 
 /* Every session stays mounted; only the active one is shown. Absolute
@@ -1849,77 +1906,6 @@ input[type='color']::-moz-color-swatch {
   font-size: 13px;
   line-height: 1;
   min-width: 24px;
-}
-
-/* ------------------------------------------------------- terminal bar */
-
-/* Always present, even with the feature switched off — a silent opt-in is
-   undiscoverable, and the app shipped with no affordance at all. */
-.terminal-bar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 26px;
-  padding: 0 10px;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-}
-
-.terminal-bar-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: 0;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.terminal-bar-btn:hover {
-  color: var(--fg);
-  background: var(--surface-2);
-}
-
-/* Miniature of the tab strip: with the panel down you can still see what
-   is running, and click straight into it. This is what makes the bar the
-   collapsed *form* of the panel rather than a second control for it. */
-.terminal-bar-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: 0;
-  color: var(--muted);
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.terminal-bar-tab:hover {
-  color: var(--fg);
-  background: var(--surface-2);
-}
-
-.terminal-bar-caret {
-  display: inline-block;
-  transform: rotate(90deg);
-  font-size: 13px;
-  line-height: 1;
-}
-
-.terminal-bar-btn.is-off {
-  color: var(--subtle);
-}
-
-.terminal-bar-hint {
-  color: var(--subtle);
-  font-size: 11px;
 }
 
 /* ---------------------------------------------------------- sidebar rail

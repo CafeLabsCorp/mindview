@@ -1,8 +1,8 @@
-// Session bookkeeping lives here, above the panel, because two different
-// surfaces need it: the collapsed bar (which lists what is running) and the
-// expanded panel (which renders it). Only the *metadata* is here — the
-// xterm instances and sockets stay inside TerminalView, so this module
-// carries no weight into the main bundle.
+// Session bookkeeping lives here, at the top of the app, because several
+// surfaces need it: the Terminal page (tabs), the pop-out balloons, the
+// sidebar, and Ctrl+`. Only the *metadata* is here — the xterm instances
+// and sockets stay inside TerminalView (mounted once by TerminalHost), so
+// this module carries no weight into the main bundle.
 import { useCallback, useState } from 'react';
 
 export type TerminalStatus = 'connecting' | 'ready' | 'exited' | 'error';
@@ -14,6 +14,8 @@ export interface TerminalTab {
   restartKey: number;
   status: TerminalStatus;
   detail: string;
+  /** Floating in its own always-on-top window instead of on the page. */
+  poppedOut: boolean;
 }
 
 export interface TerminalSessions {
@@ -26,6 +28,7 @@ export interface TerminalSessions {
   activate: (id: number) => void;
   restart: (id: number) => void;
   setStatus: (id: number, status: TerminalStatus, detail: string) => void;
+  setPoppedOut: (id: number, poppedOut: boolean) => void;
 }
 
 let nextTabId = 1;
@@ -36,7 +39,7 @@ export function useTerminalSessions(): TerminalSessions {
 
   const open = useCallback(() => {
     const id = nextTabId++;
-    setTabs((prev) => [...prev, { id, restartKey: 0, status: 'connecting', detail: '' }]);
+    setTabs((prev) => [...prev, { id, restartKey: 0, status: 'connecting', detail: '', poppedOut: false }]);
     setActiveId(id);
     return id;
   }, []);
@@ -63,6 +66,10 @@ export function useTerminalSessions(): TerminalSessions {
     setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, status, detail } : t)));
   }, []);
 
+  const setPoppedOut = useCallback((id: number, poppedOut: boolean) => {
+    setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, poppedOut } : t)));
+  }, []);
+
   return {
     tabs,
     activeId,
@@ -73,5 +80,6 @@ export function useTerminalSessions(): TerminalSessions {
     activate,
     restart,
     setStatus,
+    setPoppedOut,
   };
 }

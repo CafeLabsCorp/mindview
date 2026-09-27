@@ -16,6 +16,7 @@
     "graph": "Graph",
     "shelf": "Shelf",
     "console": "Console",
+    "terminal": "Terminal",
     "settings": "Settings",
     "search": "Search…",
     "hideSidebar": "Hide the sidebar",
@@ -122,10 +123,6 @@
   "terminal": {
     "label": "Terminal",
     "tab": "terminal {n}",
-    "expand": "Expand the terminal",
-    "collapse": "Collapse the terminal",
-    "collapseTitle": "Collapse — the sessions keep running",
-    "resize": "Resize the terminal",
     "sessions": "Terminal sessions",
     "endSession": "End this session",
     "endSessionAria": "End terminal {n}",
@@ -133,8 +130,15 @@
     "newSession": "New session",
     "newSessionAria": "New terminal session",
     "reopen": "reopen",
-    "disabled": "terminal off — enable it in Settings",
-    "short": "terminal"
+    "short": "terminal",
+    "popOut": "Pop out into a floating window",
+    "dockBack": "Back to the Terminal page",
+    "inBalloon": "floating",
+    "poppedBody": "This session is floating in its own window.",
+    "onTopOn": "Staying above other windows — click to let it go behind",
+    "onTopOff": "Click to keep it above other windows",
+    "offBody": "The embedded terminal is off. It runs a shell (by default, Claude Code) in your vault's folder — turn it on in Settings if you want it.",
+    "offCta": "Open Settings"
   },
   "noVault": {
     "title": "No notes here yet",

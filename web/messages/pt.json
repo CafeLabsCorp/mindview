@@ -16,6 +16,7 @@
     "graph": "Grafo",
     "shelf": "Estante",
     "console": "Console",
+    "terminal": "Terminal",
     "settings": "Ajustes",
     "search": "Buscar…",
     "hideSidebar": "Esconder a barra lateral",
@@ -122,10 +123,6 @@
   "terminal": {
     "label": "Terminal",
     "tab": "terminal {n}",
-    "expand": "Expandir o terminal",
-    "collapse": "Recolher o terminal",
-    "collapseTitle": "Recolher — as sessões continuam rodando",
-    "resize": "Redimensionar o terminal",
     "sessions": "Sessões de terminal",
     "endSession": "Encerrar esta sessão",
     "endSessionAria": "Encerrar terminal {n}",
@@ -133,8 +130,15 @@
     "newSession": "Nova sessão",
     "newSessionAria": "Nova sessão de terminal",
     "reopen": "reabrir",
-    "disabled": "terminal desligado — habilitar nos Ajustes",
-    "short": "terminal"
+    "short": "terminal",
+    "popOut": "Soltar numa janela flutuante",
+    "dockBack": "Voltar pra página do Terminal",
+    "inBalloon": "flutuando",
+    "poppedBody": "Esta sessão está flutuando numa janela própria.",
+    "onTopOn": "Sempre por cima das outras janelas — clique pra deixar ir pra trás",
+    "onTopOff": "Clique pra manter por cima das outras janelas",
+    "offBody": "O terminal embutido está desligado. Ele roda um shell (por padrão, o Claude Code) na pasta do vault — ligue nos Ajustes se quiser usar.",
+    "offCta": "Abrir Ajustes"
   },
   "noVault": {
     "title": "Nenhuma nota aqui ainda",

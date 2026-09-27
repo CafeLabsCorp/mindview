@@ -19,6 +19,9 @@ app.setName('MindView');
 let server: RunningServer | null = null;
 let win: BrowserWindow | null = null;
 let launchMode: LaunchMode = 'native';
+/** Terminal balloons, by session id (see setWindowOpenHandler below). */
+const POPOUT_NAME = /^mv-term-(\d+)$/;
+const popouts = new Map<number, BrowserWindow>();
 /** The server's origin once it's up; null while the splash is showing. */
 let appOrigin: string | null = null;
 
@@ -143,6 +146,15 @@ function registerBridge(origin: string): void {
     return !error;
   });
 
+  // A balloon's "keep on top" toggle.
+  ipcMain.handle('mindview:popout-on-top', (e, id: unknown, onTop: unknown) => {
+    if (!fromOurPage(e)) return false;
+    const child = popouts.get(Number(id));
+    if (!child || child.isDestroyed()) return false;
+    child.setAlwaysOnTop(onTop === true, 'floating');
+    return true;
+  });
+
   // "Show in folder" — any asset: it selects the file in Explorer and runs
   // nothing.
   ipcMain.handle('mindview:show-asset', async (e, vaultPath: unknown) => {
@@ -260,9 +272,44 @@ function createWindow(): void {
 
   // Keep it a window, not a browser: external links open in the real
   // browser, and in-app navigation can never leave the loopback origin.
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    // A terminal balloon (web/src/lib/popoutWindow.ts): about:blank, named
+    // mv-term-<id>. It must stay in THIS renderer — the page moves a live
+    // terminal's DOM into it — so it inherits the page's webPreferences
+    // untouched. Its preload gets nothing: bridge calls from about:blank
+    // fail fromOurPage (origin "null").
+    if (url === 'about:blank' && POPOUT_NAME.test(frameName)) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 720,
+          height: 440,
+          minWidth: 360,
+          minHeight: 200,
+          alwaysOnTop: true,
+          autoHideMenuBar: true,
+          backgroundColor: '#0a0a0a',
+          title: 'MindView — terminal',
+        },
+      };
+    }
     if (/^https?:\/\//.test(url)) shell.openExternal(url);
     return { action: 'deny' };
+  });
+  win.webContents.on('did-create-window', (child, { frameName }) => {
+    const m = POPOUT_NAME.exec(frameName);
+    if (!m) {
+      child.close();
+      return;
+    }
+    const id = Number(m[1]);
+    popouts.set(id, child);
+    child.setAlwaysOnTop(true, 'floating');
+    child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    child.webContents.on('will-navigate', (e) => e.preventDefault());
+    child.on('closed', () => {
+      if (popouts.get(id) === child) popouts.delete(id);
+    });
   });
   // (loadURL from here doesn't fire will-navigate; only the page's own
   // navigations do — and on the splash, before appOrigin exists, none pass.)

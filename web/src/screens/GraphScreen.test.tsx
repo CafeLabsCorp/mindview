@@ -7,7 +7,7 @@ import { DEFAULT_GRAPH_PREFS } from '../lib/graphPrefs';
 import { FALLBACK_SETTINGS } from '../context/SettingsContext';
 import { makeT } from '../i18n';
 
-// Same reason as TerminalPanel.test.tsx: look the label up, do not retype it.
+// Same reason as TerminalHost.test.tsx: look the label up, do not retype it.
 const t = makeT('en');
 
 // --- fixtures --------------------------------------------------------------

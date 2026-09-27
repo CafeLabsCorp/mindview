@@ -4,8 +4,8 @@
 // routing library.
 import { useEffect, useState } from 'react';
 
-export type Screen = 'read' | 'estante' | 'console' | 'grafo' | 'ajustes';
-const SCREENS: Screen[] = ['read', 'estante', 'console', 'grafo', 'ajustes'];
+export type Screen = 'read' | 'estante' | 'console' | 'grafo' | 'terminal' | 'ajustes';
+const SCREENS: Screen[] = ['read', 'estante', 'console', 'grafo', 'terminal', 'ajustes'];
 
 export interface Route {
   screen: Screen;

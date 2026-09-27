@@ -1,5 +1,5 @@
 // Whether the whole left column is on screen. Per-browser UI convenience,
-// same call as treeOpenState / terminalPanelState: not vault data, not part
+// same call as treeOpenState: not vault data, not part
 // of the Backup.
 //
 // Replaces the old `mindview.navOpen.v1`, which only collapsed the nav list

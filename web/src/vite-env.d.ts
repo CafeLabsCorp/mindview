@@ -14,5 +14,7 @@ interface Window {
     canOpenExternally: (ext: string) => boolean;
     openAsset: (vaultPath: string) => Promise<boolean>;
     showAssetInFolder: (vaultPath: string) => Promise<boolean>;
+    /** Keep a terminal balloon above other apps, or not. */
+    setPopoutOnTop?: (id: number, onTop: boolean) => Promise<boolean>;
   };
 }

@@ -10,6 +10,10 @@ interface Props {
   /** Hidden tabs stay mounted so their shell keeps running — unmounting
    * would close the socket, and the PTY dies with it. */
   active: boolean;
+  /** Where TerminalHost has put this view's DOM ('page' | 'parked' |
+   * 'pop'). A change means it may now be in ANOTHER window: xterm has to be
+   * told (it measures and schedules rendering on its own window). */
+  placement: string;
   fontSize: number;
   /** Bumped by the panel to throw this shell away and start a fresh one,
    * without losing the tab (and its place in the tab strip). */
@@ -56,7 +60,7 @@ function readXtermTheme(): Record<string, string> {
 /** One shell: one xterm instance bound to one WebSocket. Everything about
  * a session's lifetime lives here, so the panel above can treat a tab as
  * an opaque thing that is either mounted (alive) or not (killed). */
-export function TerminalView({ active, fontSize, restartKey, onStatus }: Props) {
+export function TerminalView({ active, placement, fontSize, restartKey, onStatus }: Props) {
   const { settings } = useSettings();
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -159,6 +163,36 @@ export function TerminalView({ active, fontSize, restartKey, onStatus }: Props) 
       fitRef.current = null;
     };
   }, [restartKey, fontSize]);
+
+  // Moved to another window (a balloon) or back: calling open() again on an
+  // already-open terminal only re-reads which window its element lives in
+  // (xterm ≥5.4, built for VS Code's auxiliary windows). That window's own
+  // resize events drive the fit — a ResizeObserver from this window isn't
+  // guaranteed to see elements in another document.
+  useEffect(() => {
+    const host = hostRef.current;
+    const term = termRef.current;
+    if (!host || !term) return;
+    term.open(host);
+    const win = host.ownerDocument.defaultView;
+    const refit = () => {
+      try {
+        fitRef.current?.fit();
+      } catch {
+        /* not laid out */
+      }
+    };
+    const id = win?.requestAnimationFrame(() => {
+      refit();
+      if (active) term.focus();
+    });
+    win?.addEventListener('resize', refit);
+    return () => {
+      if (id !== undefined) win?.cancelAnimationFrame(id);
+      win?.removeEventListener('resize', refit);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placement, restartKey, fontSize]);
 
   // Theme/accent changes don't justify tearing the shell down — repaint in
   // place instead, which is why this is a separate effect.

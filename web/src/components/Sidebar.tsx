@@ -18,6 +18,7 @@ const TABS: { screen: Screen; label: MessageKey; icon: string }[] = [
   { screen: 'grafo', label: 'nav.graph', icon: '◈' },
   { screen: 'estante', label: 'nav.shelf', icon: '▥' },
   { screen: 'console', label: 'nav.console', icon: '▦' },
+  { screen: 'terminal', label: 'nav.terminal', icon: '›_' },
 ];
 
 interface SidebarProps {

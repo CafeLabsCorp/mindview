@@ -20,6 +20,8 @@ const bridge = {
   canOpenExternally: (ext: string): boolean => canOpenExternally(ext),
   openAsset: (vaultPath: string): Promise<boolean> => ipcRenderer.invoke('mindview:open-asset', vaultPath),
   showAssetInFolder: (vaultPath: string): Promise<boolean> => ipcRenderer.invoke('mindview:show-asset', vaultPath),
+  /** Keep a terminal balloon above other apps, or let it go behind. */
+  setPopoutOnTop: (id: number, onTop: boolean): Promise<boolean> => ipcRenderer.invoke('mindview:popout-on-top', id, onTop),
 };
 
 export type DesktopBridge = typeof bridge;

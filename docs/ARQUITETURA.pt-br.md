@@ -494,6 +494,19 @@ foi uma decisão deliberada, não um descuido:
   digitar/colar um caminho mais uma lista de "recentes" (espelhando como o
   próprio trocador de vault do Obsidian funciona) cobre a mesma necessidade
   sem o custo de empacotamento.
+- **Seletor de pasta nativo — entregue em 2026-09-27.** Com a casca
+  Electron no lugar, o botão "Escolher pasta…" finalmente existe (Ajustes e
+  tela de primeiro uso, só no desktop — um navegador não tem como devolver o
+  caminho real de uma pasta). O `desktop/src/preload.ts` é o **único** poder
+  de Electron da página: uma ponte sandboxed e isolada que expõe
+  `pickFolder()`, que devolve uma string de caminho e mais nada, e o
+  processo principal só responde chamadas do nosso próprio frame de topo na
+  origem de loopback. O diálogo devolve caminho do Windows mesmo com o
+  server rodando no WSL; converter é trabalho do server
+  (`server/src/io/hostPath.ts`: `C:\…` → `/mnt/c/…`,
+  `\\wsl.localhost\<distro>\…` → `/…`), então caminhos digitados recebem
+  o mesmo tratamento. Erros de troca de vault levam um código `vaultPath.*`
+  que a UI traduz.
 - ~~**Um terminal embutido.**~~ **Entregue em 2026-09-06 — ver §12 abaixo.**
   A fronteira de transporte mantida em aberto pra isso era exatamente o que
   faltava: o `/api/events` seguiu SSE e o terminal ganhou o próprio

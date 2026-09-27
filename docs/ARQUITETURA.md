@@ -469,6 +469,17 @@ deliberate call, not an oversight:
   would add for free right now, and typing/pasting a path plus a "recent
   paths" list (mirroring how Obsidian's own vault switcher works) covers the
   same need without the packaging cost.
+- **Native folder picker — shipped 2026-09-27.** With the Electron shell in
+  place, the "Choose folder…" button finally exists (Settings and the
+  first-run screen, desktop only — a browser has no way to hand back a real
+  folder path). `desktop/src/preload.ts` is the page's **only** Electron
+  power: a sandboxed, context-isolated bridge exposing `pickFolder()`, which
+  returns a path string and nothing else, and the main process answers only
+  calls from our own top frame on the loopback origin. The dialog returns a
+  Windows path even when the server runs inside WSL; converting it is the
+  server's job (`server/src/io/hostPath.ts`: `C:\…` → `/mnt/c/…`,
+  `\\wsl.localhost\<distro>\…` → `/…`), so typed paths get the same
+  treatment. Vault-switch errors carry a `vaultPath.*` code the UI translates.
 - ~~**An embedded terminal.**~~ **Shipped 2026-09-06 — see §12 below.**
   The transport boundary kept open for it turned out to be exactly what was
   needed: `/api/events` stayed SSE and the terminal got its own WebSocket.

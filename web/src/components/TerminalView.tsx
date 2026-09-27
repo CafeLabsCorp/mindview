@@ -67,6 +67,9 @@ export function TerminalView({ active, placement, fontSize, restartKey, onStatus
   const fitRef = useRef<FitAddon | null>(null);
   const statusRef = useRef(onStatus);
   statusRef.current = onStatus;
+  // Read at creation only — later changes are applied in place (below).
+  const fontSizeRef = useRef(fontSize);
+  fontSizeRef.current = fontSize;
 
   // One effect owns the whole lifecycle (xterm + socket): they are born and
   // die together, and splitting them into two effects would let a stale
@@ -77,7 +80,7 @@ export function TerminalView({ active, placement, fontSize, restartKey, onStatus
 
     const term = new Terminal({
       fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-      fontSize,
+      fontSize: fontSizeRef.current,
       lineHeight: 1.2,
       cursorBlink: true,
       scrollback: 5000,
@@ -162,7 +165,23 @@ export function TerminalView({ active, placement, fontSize, restartKey, onStatus
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [restartKey, fontSize]);
+    // fontSize is deliberately NOT a dependency: this effect owns the socket,
+    // and re-running it kills the shell. It used to be one, so nudging the
+    // font slider in Ajustes restarted every session (v0.2.1 retest, R.4).
+  }, [restartKey]);
+
+  // Font size, applied to the live terminal: xterm re-measures its cells,
+  // fit() recomputes cols/rows, and onResize tells the PTY — no restart.
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term || term.options.fontSize === fontSize) return;
+    term.options.fontSize = fontSize;
+    try {
+      fitRef.current?.fit();
+    } catch {
+      /* not laid out */
+    }
+  }, [fontSize]);
 
   // Moved to another window (a balloon) or back: calling open() again on an
   // already-open terminal only re-reads which window its element lives in
@@ -192,7 +211,7 @@ export function TerminalView({ active, placement, fontSize, restartKey, onStatus
       win?.removeEventListener('resize', refit);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [placement, restartKey, fontSize]);
+  }, [placement, restartKey]);
 
   // Theme/accent changes don't justify tearing the shell down — repaint in
   // place instead, which is why this is a separate effect.

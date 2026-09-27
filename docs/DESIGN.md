@@ -56,9 +56,9 @@ uncoloured tag pills. Blue was never part of the Mind identity (which is
 green + white); the token has been removed and those four uses reassigned:
 the engine-doc dot to `--fg`, both paused states to `--muted` (paused reads
 as *parked*, dimmer than an open task's `--fg`, and can't be confused with
-done's `--accent`), and tag pills to the same hashed palette the graph uses.
-A blue **can** still appear on screen — but only as a colour the user picked
-for a tag in Ajustes, or as one entry in the hashed ANSI tag palette.
+done's `--accent`), and tag pills to the same rule the graph uses (see the
+tag colour section below). A blue **can** still appear on screen — but only
+as a colour the user picked for a tag in Ajustes.
 
 `--on-code` / `--on-code-subtle` / `--on-code-accent` are **fixed, never
 inverted by theme**, used only on top of `--code-bg` surfaces. These exist
@@ -71,29 +71,26 @@ and separately reported and fixed the same root cause upstream in
 `mind-landing` itself (commit `37b9d49`) — see
 `mind/tarefas/empresa/mindview.md`.
 
-### Tag color palette — deliberately no green
+### Tag colours — white until the user picks one
 
-`server/src/app/houseA.ts`'s `DEFAULT_SETTINGS.tagColors` is a curated,
-terminal-ANSI-inspired set (red, orange, blue, purple, pink, cyan/teal —
-never green):
+A tag the user hasn't coloured is drawn in `--fg` (white on the dark
+theme, near-black on the light one), in the reader's pills and in the graph
+alike (`web/src/lib/tagPalette.ts`). Colour is something the user chooses in
+Ajustes, never something assigned for them. (Changed 2026-09-27. Before
+that, uncoloured tags got a hashed ANSI-ish palette colour, and
+`DEFAULT_SETTINGS.tagColors` shipped the vault owner's own twelve tags —
+which every new install then saw in Ajustes and could not delete.)
 
-```
-cafelabs: #3fb950 (this one IS green — see note)   projetos:   #e0913a
-tarefas:  #5b9eea                                   dindin:     #a78bfa
-mind:     #45b8c4                                   design:     #e685b5
-infra:    #e0913a                                   legal:      #f0655c
-lgpd:     #f0655c                                   financeiro: #8a7226
-marketing: #e685b5                                  distribuicao: #e0913a
-```
+Ajustes lists **every tag the vault uses** (`GET /api/tags`, most-used
+first), discovered from the index — there is nothing to register by hand.
+A tag's colour can be reset to the default (`null` in a `tagColors` patch
+removes the entry). A colour stored for a tag that no longer exists stays in
+`settings.yaml`, just not listed.
 
-Green is reserved for the accent/system color (buttons, active states,
-the graph's index hub nodes) precisely so a tag pill is never visually confusable with
-"this is clickable/active." The Grafo screen follows the same rule — node
-colours come from this palette (or a hashed fallback from the same ANSI
-set), never the accent green. (`cafelabs`'s default happens to reuse the green
-hex as a starting value in the shipped defaults — every tag color is
-user-editable from Ajustes, so this isn't a hard rule enforced in code, just
-the curated default set's intent.)
+Green is still reserved for the accent/system color (buttons, active
+states, the graph's index hub nodes) so a tag pill is never visually
+confusable with "this is clickable/active" — but that is now the user's
+call when picking, not a default the app enforces.
 
 ### Contrast is enforced, not just chosen carefully
 

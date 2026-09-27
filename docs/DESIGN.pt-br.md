@@ -59,9 +59,9 @@ de cor pras pills de tag sem cor. Azul nunca fez parte da identidade do Mind
 reatribuídos: o ponto de engine-doc pro `--fg`, os dois estados de pausado
 pro `--muted` (pausado lê como *parado*, mais apagado que o `--fg` de uma
 tarefa aberta, e sem risco de confundir com o `--accent` de concluída), e as
-pills de tag pra mesma paleta com hash que o grafo usa. Um azul **ainda
-pode** aparecer na tela — mas só como cor que o usuário escolheu pra uma tag
-no Ajustes, ou como uma entrada da paleta ANSI de tags.
+pills de tag pra mesma regra que o grafo usa (ver a seção de cores de tag
+abaixo). Um azul **ainda pode** aparecer na tela — mas só como cor que o
+usuário escolheu pra uma tag no Ajustes.
 
 `--on-code` / `--on-code-subtle` / `--on-code-accent` são **fixos, nunca
 invertidos pelo tema**, usados só em cima de superfícies `--code-bg`. Esses
@@ -74,30 +74,26 @@ de bug localmente com tokens dedicados que não invertem, e separadamente
 reportou e corrigiu a mesma causa raiz no próprio `mind-landing` (commit
 `37b9d49`) — ver `mind/tarefas/empresa/mindview.md`.
 
-### Paleta de cores das tags — deliberadamente sem verde
+### Cores das tags — branco até o usuário escolher
 
-O `DEFAULT_SETTINGS.tagColors` de `server/src/app/houseA.ts` é um conjunto
-curado, inspirado em ANSI de terminal (vermelho, laranja, azul, roxo, rosa,
-ciano/teal — nunca verde):
+Uma tag sem cor escolhida é desenhada em `--fg` (branco no tema escuro,
+quase-preto no claro), tanto nas pills da leitura quanto no grafo
+(`web/src/lib/tagPalette.ts`). Cor é algo que o usuário escolhe no Ajustes,
+nunca algo atribuído por ele. (Mudou em 2026-09-27. Antes, tag sem cor
+ganhava uma cor da paleta ANSI via hash, e o `DEFAULT_SETTINGS.tagColors`
+vinha com as doze tags do dono do vault — que toda instalação nova via no
+Ajustes e não conseguia apagar.)
 
-```
-cafelabs: #3fb950 (este É verde — ver nota)   projetos:   #e0913a
-tarefas:  #5b9eea                              dindin:     #a78bfa
-mind:     #45b8c4                              design:     #e685b5
-infra:    #e0913a                              legal:      #f0655c
-lgpd:     #f0655c                              financeiro: #8a7226
-marketing: #e685b5                             distribuicao: #e0913a
-```
+O Ajustes lista **toda tag que o vault usa** (`GET /api/tags`, das mais
+usadas pras menos), descoberta pelo índice — não existe cadastro manual. A
+cor de uma tag pode voltar ao padrão (`null` num patch de `tagColors` remove
+a entrada). Uma cor guardada pra uma tag que não existe mais fica no
+`settings.yaml`, só não aparece na lista.
 
-Verde fica reservado pra cor de destaque/sistema (botões, estados ativos,
-os nós-hub de índice do grafo) exatamente pra que uma pill de tag nunca seja
-visualmente confundível com "isto é clicável/ativo." A tela Grafo segue a
-mesma regra — a cor dos nós vem desta paleta (ou de um fallback via hash do
-mesmo conjunto ANSI), nunca do verde do accent. (O default de
-`cafelabs` reaproveita o hex do verde como valor inicial nos defaults
-enviados — toda cor de tag é editável pelo usuário em Ajustes, então isso
-não é uma regra rígida imposta em código, só a intenção do conjunto de
-defaults curado.)
+Verde continua reservado pra cor de destaque/sistema (botões, estados
+ativos, os nós-hub de índice do grafo), pra que uma pill de tag nunca seja
+confundível com "isto é clicável/ativo" — mas agora é escolha do usuário ao
+escolher a cor, não um padrão imposto pelo app.
 
 ### Contraste é reforçado, não só escolhido com cuidado
 

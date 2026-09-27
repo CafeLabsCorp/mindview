@@ -11,11 +11,12 @@ directories:
   output: release
   buildResources: build
 
-# app.asar holds only the Electron main bundle. Everything the server needs
+# app.asar holds only the Electron main bundle and its preload. Everything the server needs
 # is staged (desktop/scripts/stage.mjs) and shipped unpacked under
 # resources/ so native files (node-pty) and the bundled Node stay real files.
 files:
   - dist/main.cjs
+  - dist/preload.cjs
   - package.json
 
 extraResources:

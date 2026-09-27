@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, Menu, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell, type IpcMainInvokeEvent } from 'electron';
 import { appendFileSync, mkdirSync, renameSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { detectMode, readStoredMode, writeStoredMode, type LaunchMode } from './launchMode.js';
@@ -89,7 +89,30 @@ async function main(): Promise<void> {
     return;
   }
 
+  registerBridge(new URL(server.url).origin);
   createWindow();
+}
+
+/** Main-process side of preload.ts. Every handler checks that the call comes
+ * from our own page (top frame, loopback origin) — an iframe or a page that
+ * somehow navigated elsewhere gets nothing. */
+function registerBridge(origin: string): void {
+  const fromOurPage = (e: IpcMainInvokeEvent): boolean => {
+    try {
+      return e.senderFrame === e.sender.mainFrame && new URL(e.senderFrame.url).origin === origin;
+    } catch {
+      return false;
+    }
+  };
+
+  ipcMain.handle('mindview:pick-folder', async (e) => {
+    if (!fromOurPage(e) || !win) return null;
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: 'Escolher a pasta do vault',
+      properties: ['openDirectory'],
+    });
+    return canceled || filePaths.length === 0 ? null : filePaths[0];
+  });
 }
 
 async function resolveMode(): Promise<LaunchMode> {
@@ -158,9 +181,11 @@ function createWindow(): void {
     autoHideMenuBar: true,
     webPreferences: {
       devTools: !app.isPackaged,
-      // No preload / node integration: the page is the same web app served
-      // over loopback, it must not gain Electron powers it wouldn't have in
-      // a browser.
+      // The page is the same web app served over loopback and must not gain
+      // Electron powers it wouldn't have in a browser — with one exception,
+      // the folder picker in preload.ts. Sandboxed, isolated, no node.
+      preload: join(__dirname, 'preload.cjs'),
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
     },

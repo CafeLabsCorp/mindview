@@ -14,7 +14,13 @@ export function sendJson(res: ServerResponse, status: number, body: unknown): vo
 }
 
 export class HttpError extends Error {
-  constructor(public status: number, message: string) {
+  /** `code`, when set, is a stable key the web UI translates; `message` stays
+   * the English fallback for anything that doesn't know the code. */
+  constructor(
+    public status: number,
+    message: string,
+    public code?: string,
+  ) {
     super(message);
   }
 }

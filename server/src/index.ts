@@ -18,7 +18,7 @@
 // hop, not a browser-granted CORS exception) — see web/vite.config.ts.
 import { createServer } from 'node:http';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { extname, join, dirname, resolve as resolvePath } from 'node:path';
+import { extname, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   buildBoard,
@@ -48,6 +48,7 @@ import { exportBackup, importBackup, InvalidBackupError, validateBackup } from '
 import { logUsage, noteRecentNode, noteRecentVaultPath, readState, togglePinnedNode, writeSession } from './app/stateB.js';
 import { VaultService } from './app/vaultService.js';
 import { confine, OutsideRootError } from './io/confine.js';
+import { HostPathError, toHostPath } from './io/hostPath.js';
 import { obsidianUri, vscodeUri } from './io/externalOpen.js';
 import { generateToken, isHostAllowed, rejectUnauthorized, tokenFromRequest, tokenMatches } from './io/security.js';
 import { HttpError, readJsonBody, sendJson } from './http/respond.js';
@@ -157,13 +158,18 @@ router.get('api/config', ({ res }) => {
 
 router.put('api/config', async ({ req, res }) => {
   const body = await readJsonBody<{ vaultPath?: string }>(req);
-  const candidate = body.vaultPath?.trim();
-  if (!candidate || !candidate.startsWith('/')) {
-    throw new HttpError(400, 'vaultPath must be a non-empty absolute path');
+  // Accepts whatever the user typed or the desktop folder picker returned —
+  // including Windows paths while the server runs inside WSL — and turns it
+  // into a path this process can open. See io/hostPath.ts.
+  let resolved: string;
+  try {
+    resolved = toHostPath(body.vaultPath ?? '');
+  } catch (err) {
+    if (err instanceof HostPathError) throw new HttpError(400, err.message, `vaultPath.${err.code}`);
+    throw err;
   }
-  const resolved = resolvePath(candidate);
   if (!existsSync(resolved) || !statSync(resolved).isDirectory()) {
-    throw new HttpError(400, `not a directory: ${resolved}`);
+    throw new HttpError(400, `not a directory: ${resolved}`, 'vaultPath.notDirectory');
   }
   await vaultService.setVaultPath(resolved);
   writeConfig({ vault_path: resolved });
@@ -380,7 +386,7 @@ const server = createServer(async (req, res) => {
       await matched.handler({ req, res, params: matched.params, query: url.searchParams });
     } catch (err) {
       if (err instanceof HttpError) {
-        sendJson(res, err.status, { error: err.message });
+        sendJson(res, err.status, err.code ? { error: err.message, code: err.code } : { error: err.message });
       } else if (err instanceof OutsideRootError || err instanceof InvalidBackupError) {
         sendJson(res, 400, { error: err.message });
       } else {

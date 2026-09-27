@@ -183,6 +183,34 @@ describe('composition root — tree and settings round-trip', () => {
   });
 });
 
+describe('composition root — vault switch errors carry a translatable code', () => {
+  const putVault = (vaultPath: string) =>
+    fetch(apiUrl('/config'), {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ vaultPath }),
+    });
+
+  it('a relative path is refused with vaultPath.notAbsolute, and the vault stays put', async () => {
+    const res = await putVault('mind');
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('vaultPath.notAbsolute');
+    expect((await (await fetch(apiUrl('/config'))).json()).vaultPath).toBe(vaultDir);
+  });
+
+  it('a missing folder is refused with vaultPath.notDirectory', async () => {
+    const res = await putVault(join(vaultDir, 'does-not-exist'));
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('vaultPath.notDirectory');
+  });
+
+  it('switching to the same vault with a trailing slash is accepted and normalised', async () => {
+    const res = await putVault(vaultDir + '/');
+    expect(res.status).toBe(200);
+    expect((await res.json()).vaultPath).toBe(vaultDir);
+  });
+});
+
 describe('composition root — backup export/import (replaces the mindview-data repo)', () => {
   it('creates a notebook, exports it, then a fresh import round-trips it back', async () => {
     await fetch(apiUrl('/notebooks'), {

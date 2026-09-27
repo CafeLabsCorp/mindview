@@ -581,6 +581,11 @@ input[type='color']::-moz-color-swatch {
   overflow-x: auto;
   white-space: nowrap;
 }
+.no-vault-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 
 .node-toolbar {
   display: flex;

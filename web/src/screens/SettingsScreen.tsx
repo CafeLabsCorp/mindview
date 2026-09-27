@@ -7,6 +7,7 @@ import { api, ApiError } from '../api/client';
 import type { ConfigResponse, TerminalShellsResponse } from '../api/types';
 import { checkTagColorContrast } from '../lib/contrast';
 import { useThemeColors } from '../lib/useThemeColors';
+import { vaultErrorMessage } from '../lib/vaultError';
 import { useT } from '../i18n/useT';
 import { LOCALES, type MessageKey, type TFn } from '../i18n';
 
@@ -476,17 +477,27 @@ function VaultPathSection() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const desktop = window.mindviewDesktop;
+
   const apply = async (path: string) => {
     setSaving(true);
     setError(null);
     try {
       await api.put('/config', { vaultPath: path });
+      setValue('');
       refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(vaultErrorMessage(err, t));
     } finally {
       setSaving(false);
     }
+  };
+
+  // Desktop only: the OS folder dialog. The path comes back in Windows shape
+  // even when the server runs in WSL — the server converts it.
+  const pick = async () => {
+    const picked = await desktop?.pickFolder();
+    if (picked) apply(picked);
   };
 
   return (
@@ -512,6 +523,11 @@ function VaultPathSection() {
         <button className="btn btn-primary" disabled={!value.trim() || saving} onClick={() => apply(value.trim())}>
           {t('settings.vaultSwitch')}
         </button>
+        {desktop && (
+          <button className="btn btn-ghost" disabled={saving} onClick={pick}>
+            {t('settings.vaultPick')}
+          </button>
+        )}
       </div>
       {error && <div className="error-banner">{error}</div>}
       {config && config.recentVaultPaths.length > 0 && (

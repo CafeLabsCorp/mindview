@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { api } from '../api/client';
 import { useApi } from '../hooks/useApi';
 import { navigate } from '../lib/hashRoute';
+import { vaultErrorMessage } from '../lib/vaultError';
 import { useT } from '../i18n/useT';
 
 interface ConfigResponse {
@@ -17,6 +19,22 @@ export function NoVault() {
   const t = useT();
   const { data: config } = useApi<ConfigResponse>('/config');
   const [copied, setCopied] = useState(false);
+  const [pickError, setPickError] = useState<string | null>(null);
+  const desktop = window.mindviewDesktop;
+
+  // Desktop only: pick the folder right here instead of sending the user to
+  // Settings to type a path. A successful switch reindexes, the tree stops
+  // being empty, and App swaps this screen out on its own.
+  const pick = async () => {
+    const picked = await desktop?.pickFolder();
+    if (!picked) return;
+    setPickError(null);
+    try {
+      await api.put('/config', { vaultPath: picked });
+    } catch (err) {
+      setPickError(vaultErrorMessage(err, t));
+    }
+  };
 
   const copy = () => {
     navigator.clipboard?.writeText(CLONE_CMD).then(
@@ -42,9 +60,17 @@ export function NoVault() {
       </div>
 
       <p className="no-vault-step">{t('noVault.thenPick')}</p>
-      <button className="btn btn-primary" onClick={() => navigate('ajustes')}>
-        {t('noVault.openSettings')}
-      </button>
+      <div className="no-vault-actions">
+        {desktop && (
+          <button className="btn btn-primary" onClick={pick}>
+            {t('settings.vaultPick')}
+          </button>
+        )}
+        <button className={desktop ? 'btn btn-ghost' : 'btn btn-primary'} onClick={() => navigate('ajustes')}>
+          {t('noVault.openSettings')}
+        </button>
+      </div>
+      {pickError && <div className="error-banner">{pickError}</div>}
     </div>
   );
 }

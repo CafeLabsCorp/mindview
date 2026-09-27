@@ -203,10 +203,18 @@
     "backupConfirm": "Importar este backup substitui TODOS os cadernos, tema, cores de tag e fixados atuais. Continuar?",
     "backupImported": { "one": "backup importado — {count} caderno restaurado", "other": "backup importado — {count} cadernos restaurados" },
     "vault": "Vault",
-    "vaultHint": "caminho absoluto do vault a ler. Sem diálogo nativo do Explorer (isso viria de graça só se um dia embrulhar em Electron) — digite/cole o caminho ou escolha um recente.",
+    "vaultHint": "pasta do vault a ler. Escolha pelo botão, ou digite/cole o caminho — caminhos do Windows também valem (C:\\… ou \\\\wsl.localhost\\…).",
     "vaultCurrent": "atual:",
-    "vaultPlaceholder": "/caminho/absoluto/pro/vault",
+    "vaultPlaceholder": "C:\\Users\\voce\\mind  ou  /home/voce/mind",
     "vaultSwitch": "trocar",
-    "vaultRecent": "Recentes"
+    "vaultPick": "Escolher pasta…",
+    "vaultRecent": "Recentes",
+    "vaultError": {
+      "empty": "digite o caminho de uma pasta",
+      "notAbsolute": "use o caminho completo — com a letra do disco no Windows (C:\\…) ou começando com / no Linux",
+      "otherDistro": "essa pasta está numa distro do WSL diferente da que o MindView usa — escolha uma da mesma distro ou do Windows",
+      "notDirectory": "não existe pasta nesse caminho",
+      "network": "pastas de rede não são aceitas — mapeie como uma unidade (ex.: Z:) no Explorer e escolha por ela"
+    }
   }
 }

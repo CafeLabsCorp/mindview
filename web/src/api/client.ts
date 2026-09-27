@@ -8,6 +8,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Stable key for errors the UI translates (e.g. `vaultPath.notDirectory`). */
+    public code?: string,
   ) {
     super(message);
   }
@@ -26,13 +28,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     let message = res.statusText;
+    let code: string | undefined;
     try {
       const body = await res.json();
       message = body.error ?? message;
+      code = typeof body.code === 'string' ? body.code : undefined;
     } catch {
       /* non-JSON error body, keep statusText */
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, code);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

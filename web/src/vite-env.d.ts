@@ -7,4 +7,9 @@
 interface Window {
   __MV_TOKEN__?: string;
   __MV_PORT__?: number;
+  /** Present only inside the desktop app (desktop/src/preload.ts). Absent in
+   * a plain browser — every caller must feature-check it. */
+  mindviewDesktop?: {
+    pickFolder: () => Promise<string | null>;
+  };
 }

@@ -142,7 +142,7 @@ tema ou customização do usuário.
 ### O terminal de verdade, embaixo do falso
 
 A Fase 2 adicionou um painel de terminal real
-(`web/src/components/TerminalPanel.tsx`), o que levantou um risco óbvio: um
+(`web/src/components/TerminalView.tsx`), o que levantou um risco óbvio: um
 shell de verdade embaixo de um chrome de terminal decorativo poderia ler
 como metáfora duplicada. Não lê, porque os dois ocupam papéis diferentes —
 o chrome é uma *moldura* (topo da tela, três pontos, um caminho), o painel

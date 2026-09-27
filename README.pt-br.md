@@ -172,12 +172,12 @@ mindview/
     └── src/
         ├── screens/     # Reader, Shelf, Console, GraphScreen, SettingsScreen
         ├── components/  # Sidebar, Tree, QuickSwitcher, TerminalChrome, MarkdownBody,
-        │                # TerminalPanel (lazy — xterm.js tem ~250 KB), …
+        │                # TerminalHost (lazy — xterm.js tem ~250 KB), …
         ├── context/     # TreeContext, SettingsContext, ReindexContext, AppStateEvents
         ├── api/         # client.ts, types.ts — wrapper fino de fetch + shapes de resposta
         ├── lib/         # hashRoute.ts, contrast.ts (WCAG), remarkTaskStates.ts, useThemeColors.ts,
         │                # graphSim.ts (sim d3-force viva), graphModel.ts, tagPalette.ts, graphPrefs.ts,
-        │                # tocCollapsed.ts / treeOpenState.ts / terminalPanelState.ts
+        │                # tocCollapsed.ts / treeOpenState.ts
         │                # (estado de UI por navegador)
         └── styles/      # tokens.css (identidade, ver docs/DESIGN.md), global.css
 ```

@@ -708,21 +708,37 @@ a desconexão) foi considerado e deixado de fora desta rodada de propósito —
 adiciona ciclo de vida de processo órfão a uma feature cuja primeira versão
 é melhor pequena.
 
-**Controle de custo no cliente.** O `@xterm/xterm` tem ~250 KB e o terminal
-sai desligado, então o `TerminalPanel` é `React.lazy()`-ado pro próprio
-chunk: uma sessão que nunca abre o painel nunca baixa isso.
+**Controle de custo no cliente.** O `@xterm/xterm` tem ~250 KB e o
+terminal sai desligado, então o `TerminalHost` é `React.lazy()`-ado pro
+próprio chunk e só é montado quando uma sessão começa: uma execução que
+nunca abre a página Terminal nunca baixa isso.
 
-**O painel nunca sobe aberto.** A altura dele é lembrada entre reloads; o
-estado aberto/fechado, de propósito, não. Já foi, e a combinação era
-inalcançável: `terminalMounted` volta a `false` a cada carregamento, então
-um `open: true` restaurado não renderizava painel nenhum — e a barra, que
-se esconde sempre que o painel está "aberto", também não renderizava nada.
-O app subia com o terminal simplesmente sumido, e o `Ctrl+\`` parecia
-quebrado porque o primeiro toque só limpava a flag invisível. Restaurar
-"aberto" com honestidade significaria restaurar as *sessões*, e um reload
-mata todo PTY (ver Tempo de vida da sessão acima) — então o app sobe
-recolhido, mostrando a barra, que é a única coisa que continua verdadeira
-depois de um reload.
+**Uma página, e balões (2026-09-27).** O terminal era um painel inferior
+estilo VS Code embaixo de toda tela, com uma barra recolhida. Agora é uma
+página própria (sidebar + `Ctrl+\``), e qualquer aba pode ser arrastada pra
+fora da janela — ou solta pelo ⧉ — numa janelinha sempre por cima, o
+"balão". Isso reverte a recusa de 2026-09-06 a uma página de terminal ("tira
+o vault de vista"): o balão é justamente como ler e usar o terminal ao mesmo
+tempo.
+
+A regra da qual tudo depende: *um shell morre exatamente quando a view dele
+desmonta* (o socket fecha, e o PTY junto). Então o `TerminalHost`, montado
+na raiz do app, mantém toda `TerminalView` montada enquanto a aba existir —
+cada uma dentro de um contêiner estável, renderizada por portal — e só
+**move** esse contêiner com `appendChild`: pro slot da página enquanto a
+página Terminal está aberta, pra um estacionamento escondido fora dela, pro
+documento do balão quando solta. Nunca um alvo de portal novo: o React
+remonta um portal cujo contêiner muda. O `context/TerminalDock.tsx` guarda
+onde cada sessão está; fica no bundle principal.
+
+Mover um xterm vivo pra outra janela funciona porque o balão compartilha o
+contexto JavaScript desta página — `window.open('about:blank',
+'mv-term-<id>')` (o processo principal do desktop transforma esse nome numa
+janelinha sempre por cima) ou Document Picture-in-Picture no Chrome — e
+porque o xterm ≥5.4 relê a janela quando `open()` é chamado de novo num
+terminal já aberto. Fechar o balão devolve a sessão pra página (o DOM é
+resgatado no `pagehide`, antes do documento ir embora); encerrar a sessão
+fecha o balão.
 
 ## 13. Duas línguas, sem next-intl
 

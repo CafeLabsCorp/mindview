@@ -135,7 +135,7 @@ these exact three colors, regardless of theme or user customization.
 
 ### The real terminal, under the fake one
 
-Fase 2 added an actual terminal panel (`web/src/components/TerminalPanel.tsx`),
+Fase 2 added an actual terminal panel (`web/src/components/TerminalView.tsx`),
 which raised an obvious risk: a genuine shell sitting under a decorative
 terminal chrome could read as a duplicated metaphor. It doesn't, because
 the two occupy different roles — the chrome is a *frame* (top of the

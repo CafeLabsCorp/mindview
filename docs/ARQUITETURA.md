@@ -673,19 +673,35 @@ adds orphan-process lifecycle to a feature whose first version is better
 kept small.
 
 **Cost control on the client.** `@xterm/xterm` is ~250 KB and the terminal
-ships disabled, so `TerminalPanel` is `React.lazy()`-ed into its own chunk:
-a session that never opens the panel never downloads it.
+ships disabled, so `TerminalHost` is `React.lazy()`-ed into its own chunk and
+only mounted once a session starts: a run that never opens the Terminal
+page never downloads it.
 
-**The panel never boots open.** Its height is remembered across reloads;
-its open/closed state deliberately is not. It used to be, and the
-combination was unreachable: `terminalMounted` resets to `false` on every
-load, so a restored `open: true` rendered no panel — while the bar, which
-hides itself whenever the panel is "open", rendered nothing either. The app
-came up with the terminal simply gone, and `Ctrl+\`` appeared broken
-because the first press only cleared the invisible flag. Restoring "open"
-honestly would mean restoring the *sessions*, and a reload kills every PTY
-(see Session lifetime above) — so the app boots collapsed, showing the bar,
-which is the one thing that is still true after a reload.
+**A page, and balloons (2026-09-27).** The terminal used to be a VS
+Code-style bottom panel under every screen, with a collapsed bar. It is now
+a page of its own (sidebar + `Ctrl+\``), and any tab can be dragged out of
+the window — or popped out with ⧉ — into a small always-on-top window, a
+"balloon". This reverses the 2026-09-06 rejection of a terminal page ("it
+takes the vault out of view"): the balloon is exactly how you read and use
+the terminal at once.
+
+The one rule everything hangs on: *a shell dies exactly when its view
+unmounts* (the socket closes, the PTY with it). So `TerminalHost`, mounted
+at the app root, keeps every `TerminalView` mounted for as long as its tab
+exists — each inside one stable container, rendered through a portal — and
+only **moves** that container with `appendChild`: into the page's slot while
+the Terminal page is open, into a hidden parking spot otherwise, into a
+balloon's document when popped out. Never a new portal target: React
+remounts a portal whose container changes. `context/TerminalDock.tsx` holds
+where each session is; it stays in the main bundle.
+
+Moving a live xterm into another window works because the balloon shares
+this page's JavaScript context — `window.open('about:blank', 'mv-term-<id>')`
+(the desktop main process makes that name a small always-on-top window) or
+Document Picture-in-Picture in Chrome — and because xterm ≥5.4 re-reads its
+window when `open()` is called again on an already-open terminal. Closing a
+balloon docks the session back (its DOM is rescued on `pagehide`, before the
+document goes); ending a session closes its balloon.
 
 ## 13. Two languages, without next-intl
 

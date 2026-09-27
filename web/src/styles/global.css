@@ -1584,8 +1584,16 @@ input[type='color']::-moz-color-swatch {
 }
 .tag-color-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 10px;
+}
+.tag-color-count {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.tag-color-reset {
+  margin-left: auto;
 }
 .tag-color-row {
   display: flex;

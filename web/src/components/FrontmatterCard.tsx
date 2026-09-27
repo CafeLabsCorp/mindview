@@ -1,6 +1,6 @@
 import { useSettings } from '../context/SettingsContext';
 import { checkTagColorContrast } from '../lib/contrast';
-import { autoColorForTag } from '../lib/tagPalette';
+import { tagColor } from '../lib/tagPalette';
 import { useThemeColors } from '../lib/useThemeColors';
 import { useLocale, useT } from '../i18n/useT';
 
@@ -15,12 +15,9 @@ export function TagPill({ tag }: { tag: string }) {
   const { settings } = useSettings();
   const { fg, bg } = useThemeColors();
   const t = useT();
-  // The Ajustes map wins; a tag the user hasn't coloured falls back to the
-  // SAME stable hash the graph uses (tagPalette.autoColorForTag), not a flat
-  // blue — one tag, one colour, everywhere. The old `var(--blue)` fallback
-  // made every uncoloured tag identical in the reader while the graph gave
-  // each its own hue.
-  const color = settings.tagColors[tag] ?? autoColorForTag(tag);
+  // Same rule as the graph (tagPalette.tagColor) — one tag, one colour,
+  // everywhere: the Ajustes map wins, otherwise the app's foreground.
+  const color = tagColor(tag, settings.tagColors);
   const isHex = /^#/.test(color);
   const contrast = isHex ? checkTagColorContrast(color, fg, bg) : null;
   // The pill only ever renders `color` as text over `bg`/`surface` — it is

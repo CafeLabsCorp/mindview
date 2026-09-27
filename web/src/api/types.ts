@@ -61,6 +61,16 @@ export interface Settings {
   terminalFontSize: number;
 }
 
+/** GET /api/tags — every tag the vault uses, most-used first. */
+export interface TagCount {
+  tag: string;
+  count: number;
+}
+
+/** What `update()` sends: like Settings, except a tagColors entry may be
+ * `null`, which removes that tag's colour (back to the default). */
+export type SettingsPatch = Omit<Partial<Settings>, 'tagColors'> & { tagColors?: Record<string, string | null> };
+
 export interface ShellOption {
   label: string;
   command: string;

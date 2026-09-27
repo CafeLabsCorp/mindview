@@ -1,30 +1,13 @@
-// Color a node by one of its tags. The user's own tag→color map from
-// Ajustes (settings.tagColors) always wins; tags they haven't colored get a
-// stable auto-color hashed from the tag name, out of an ANSI-terminal-ish
-// set with NO green (green is the app accent — same rule as the reading
-// pills, see mind/tarefas/empresa/mindview.md).
-const AUTO_PALETTE = [
-  '#e06c75', // red
-  '#d19a66', // orange
-  '#e5c07b', // yellow
-  '#61afef', // blue
-  '#c678dd', // purple
-  '#e58fb0', // pink
-  '#56b6c2', // cyan
-  '#b07d48', // brown
-];
+// Color of a tag. The user's own tag→color map from Ajustes
+// (settings.tagColors) always wins; a tag they haven't coloured is drawn in
+// the app's foreground — white on the dark theme, near-black on the light
+// one (Felipe, 2026-09-14). Tags used to get a stable auto-colour hashed
+// from the name out of an ANSI-ish palette; colour is now something the
+// user chooses, never something assigned for them.
+export const DEFAULT_TAG_COLOR = 'var(--fg)';
 
-function hash(str: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-export function autoColorForTag(tag: string): string {
-  return AUTO_PALETTE[hash(tag) % AUTO_PALETTE.length];
+export function tagColor(tag: string, userColors: Record<string, string>): string {
+  return userColors[tag] ?? DEFAULT_TAG_COLOR;
 }
 
 /** A node is coloured by its FIRST tag — the broad one, which is the folder
@@ -34,6 +17,5 @@ export function autoColorForTag(tag: string): string {
  * the UI (see mind/tarefas/empresa/mindview.md). */
 export function colorForNode(tags: string[], userColors: Record<string, string>, fallback: string): string {
   if (tags.length === 0) return fallback;
-  const tag = tags[0];
-  return userColors[tag] ?? autoColorForTag(tag);
+  return tagColor(tags[0], userColors);
 }

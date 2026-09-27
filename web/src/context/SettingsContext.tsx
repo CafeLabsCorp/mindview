@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api } from '../api/client';
-import type { Settings } from '../api/types';
+import type { Settings, SettingsPatch } from '../api/types';
 import { resolveLocale } from '../i18n';
 
 export const FALLBACK_SETTINGS: Settings = {
@@ -28,7 +28,7 @@ export const FALLBACK_SETTINGS: Settings = {
 interface SettingsContextValue {
   settings: Settings;
   loaded: boolean;
-  update: (patch: Partial<Settings>) => Promise<void>;
+  update: (patch: SettingsPatch) => Promise<void>;
   /** Re-fetches from the server without diffing a patch in — needed after a
    * backup import, which replaces settings.yaml outside the normal
    * `update()` path. */
@@ -93,7 +93,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       settings,
       loaded,
       update: async (patch) => {
-        const optimistic = { ...settings, ...patch, tagColors: { ...settings.tagColors, ...(patch.tagColors ?? {}) } };
+        const tagColors = { ...settings.tagColors };
+        for (const [tag, color] of Object.entries(patch.tagColors ?? {})) {
+          if (color === null) delete tagColors[tag];
+          else tagColors[tag] = color;
+        }
+        const optimistic = { ...settings, ...patch, tagColors };
         setSettings(optimistic); // instant UI feedback
         const saved = await api.put<Settings>('/settings', patch);
         setSettings(saved); // reconcile with what the server actually persisted

@@ -4,7 +4,7 @@ import { useSettings, FALLBACK_SETTINGS } from '../context/SettingsContext';
 import { useApi } from '../hooks/useApi';
 import { useBumpAppState } from '../context/AppStateEvents';
 import { api, ApiError } from '../api/client';
-import type { ConfigResponse, TerminalShellsResponse } from '../api/types';
+import type { ConfigResponse, TagCount, TerminalShellsResponse } from '../api/types';
 import { checkTagColorContrast } from '../lib/contrast';
 import { useThemeColors } from '../lib/useThemeColors';
 import { vaultErrorMessage } from '../lib/vaultError';
@@ -32,7 +32,6 @@ const fontLabel = (t: TFn, f: (typeof READ_FONTS)[number]) => (f.label ? t(f.lab
  * server/src/app/houseA.ts's settings.yaml (Casa A). */
 export function SettingsScreen() {
   const { settings, update } = useSettings();
-  const { fg, bg } = useThemeColors();
   const t = useT();
 
   return (
@@ -160,37 +159,7 @@ export function SettingsScreen() {
           </div>
         </section>
 
-        <section className="settings-group">
-          <h3>{t('settings.tagColors')}</h3>
-          <span className="hint" style={{ display: 'block', marginBottom: 10 }}>
-            {t('settings.tagColorsHint')}
-          </span>
-          <div className="tag-color-grid">
-            {Object.entries(settings.tagColors).map(([tag, color]) => {
-              const contrast = checkTagColorContrast(color, fg, bg);
-              // Pills only ever render this color as text over the app
-              // background — see TagPill's note — so vsBg is the check
-              // that maps to a real defect; vsFg stays in the tooltip.
-              return (
-                <div key={tag} className="tag-color-row">
-                  <input type="color" value={color} onChange={(e) => update({ tagColors: { [tag]: e.target.value } })} />
-                  <span>#{tag}</span>
-                  {!contrast.vsBg.passes && (
-                    <span
-                      className="contrast-flag"
-                      title={t('settings.contrastTitle', {
-                        bg: contrast.vsBg.ratio.toFixed(2),
-                        fg: contrast.vsFg.ratio.toFixed(2),
-                      })}
-                    >
-                      {t('settings.lowContrast')}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
+        <TagColorsSection />
 
         <section className="settings-group">
           <h3>{t('settings.options')}</h3>
@@ -546,4 +515,73 @@ function VaultPathSection() {
       )}
     </section>
   );
+}
+
+// Lists every tag the vault uses (GET /api/tags, refetched on reindex) —
+// nothing to register by hand. A colour stored for a tag that no longer
+// exists in the vault stays in settings.yaml but isn't shown.
+function TagColorsSection() {
+  const t = useT();
+  const { settings, update } = useSettings();
+  const { fg, bg } = useThemeColors();
+  const { data: tags } = useApi<TagCount[]>('/tags');
+
+  return (
+    <section className="settings-group">
+      <h3>{t('settings.tagColors')}</h3>
+      <span className="hint" style={{ display: 'block', marginBottom: 10 }}>
+        {t('settings.tagColorsHint')}
+      </span>
+      {tags && tags.length === 0 && <span className="hint">{t('settings.tagColorsEmpty')}</span>}
+      <div className="tag-color-grid">
+        {tags?.map(({ tag, count }) => {
+          const chosen = settings.tagColors[tag];
+          // Pills only ever render this color as text over the app
+          // background — see TagPill's note — so vsBg is the check that
+          // maps to a real defect; vsFg stays in the tooltip. The default
+          // (the app's own foreground) needs no check.
+          const contrast = chosen ? checkTagColorContrast(chosen, fg, bg) : null;
+          return (
+            <div key={tag} className="tag-color-row">
+              <input type="color" value={chosen ?? toHex(fg)} onChange={(e) => update({ tagColors: { [tag]: e.target.value } })} />
+              <span>#{tag}</span>
+              <span className="tag-color-count">{count}</span>
+              {contrast && !contrast.vsBg.passes && (
+                <span
+                  className="contrast-flag"
+                  title={t('settings.contrastTitle', {
+                    bg: contrast.vsBg.ratio.toFixed(2),
+                    fg: contrast.vsFg.ratio.toFixed(2),
+                  })}
+                >
+                  {t('settings.lowContrast')}
+                </span>
+              )}
+              {chosen && (
+                <button
+                  className="btn btn-ghost btn-sm tag-color-reset"
+                  title={t('settings.tagColorResetTitle')}
+                  onClick={() => update({ tagColors: { [tag]: null } })}
+                >
+                  {t('settings.tagColorReset')}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** `<input type="color">` only takes #rrggbb; the theme's --fg may be
+ * written as #rgb or rgb(). Anything unparseable falls back to white. */
+function toHex(color: string): string {
+  const c = color.trim();
+  if (/^#[0-9a-f]{6}$/i.test(c)) return c;
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(c);
+  if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`;
+  const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(c);
+  if (rgb) return '#' + rgb.slice(1, 4).map((n) => Number(n).toString(16).padStart(2, '0')).join('');
+  return '#ffffff';
 }

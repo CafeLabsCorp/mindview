@@ -61,6 +61,12 @@ describe('buildGraphModel', () => {
     expect(tags.every((n) => n.color === 'var(--fg)')).toBe(true);
   });
 
+  it('a tag the user never coloured is drawn in the foreground, not an auto palette colour', () => {
+    const m = buildGraphModel(graph, prefs({ colorEnabled: true, showTags: true }), {});
+    expect(m.nodes.find((n) => n.id === 'a.md')?.color).toBe('var(--fg)');
+    expect(m.nodes.filter((n) => n.kind === 'tag').every((n) => n.color === 'var(--fg)')).toBe(true);
+  });
+
   it('an untagged file takes the accent even with colouring on', () => {
     const m = buildGraphModel(graph, prefs({ colorEnabled: true }), {});
     expect(m.nodes.find((n) => n.id === 'lonely.md')?.color).toBe('var(--accent)');

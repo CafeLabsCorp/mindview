@@ -1,7 +1,7 @@
 {
   "name": "@mindview/desktop",
   "private": true,
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Electron shell for MindView — window only. Boots the Node server as a child process and loads http://127.0.0.1:<port>/.",
   "author": "Café Labs",
   "main": "dist/main.cjs",

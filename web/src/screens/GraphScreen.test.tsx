@@ -252,4 +252,44 @@ describe('GraphScreen', () => {
     });
     expect(drawn()).toBe(before);
   });
+
+  it('clicking a node opens it without grabbing it — no reheat, nothing else moves', async () => {
+    const { GraphSim } = await import('../lib/graphSim');
+    const grab = vi.spyOn(GraphSim.prototype, 'grab');
+    // jsdom has no pointer capture; the graph calls it when a press starts
+    Element.prototype.setPointerCapture ??= () => {};
+    Element.prototype.releasePointerCapture ??= () => {};
+    await renderGraph();
+    const node = [...container.querySelectorAll('.graph-node')].find((g) => g.textContent?.includes('Beta'))!;
+    const svg = container.querySelector('svg')!;
+    const fire = (el: Element, type: string, x: number, y: number) =>
+      act(() => {
+        el.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y }));
+      });
+    fire(node, 'pointerdown', 100, 100);
+    fire(svg, 'pointerup', 100, 100);
+    expect(grab).not.toHaveBeenCalled();
+    expect(window.location.hash).toContain('read');
+  });
+
+  it('dragging a node is what grabs it', async () => {
+    const { GraphSim } = await import('../lib/graphSim');
+    const grab = vi.spyOn(GraphSim.prototype, 'grab');
+    // jsdom has no pointer capture; the graph calls it when a press starts
+    Element.prototype.setPointerCapture ??= () => {};
+    Element.prototype.releasePointerCapture ??= () => {};
+    await renderGraph();
+    const node = [...container.querySelectorAll('.graph-node')].find((g) => g.textContent?.includes('Beta'))!;
+    const svg = container.querySelector('svg')!;
+    const fire = (el: Element, type: string, x: number, y: number) =>
+      act(() => {
+        el.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y }));
+      });
+    fire(node, 'pointerdown', 100, 100);
+    fire(svg, 'pointermove', 102, 101); // still under the threshold
+    expect(grab).not.toHaveBeenCalled();
+    fire(svg, 'pointermove', 130, 120);
+    expect(grab).toHaveBeenCalledOnce();
+    fire(svg, 'pointerup', 130, 120);
+  });
 });

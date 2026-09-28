@@ -214,21 +214,27 @@ export function GraphScreen() {
       dragRef.current = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: v.x, vy: v.y, moved: false };
     }
   };
+  // Pressing a node does NOT grab it yet: grabbing pins it and reheats the
+  // whole simulation, which made every other node (tags and files too)
+  // jitter on a plain click — Obsidian stays still on a click (Felipe,
+  // 2026-09-27). The grab happens once the pointer actually moves past the
+  // drag threshold (onPointerMove); a click that never moves only navigates.
   const onNodePointerDown = (e: React.PointerEvent, id: string) => {
     dragRef.current = { mode: 'node', id, sx: e.clientX, sy: e.clientY, moved: false };
-    sim.grab(id);
-    wake();
   };
   const onPointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d) return;
     const dx = e.clientX - d.sx;
     const dy = e.clientY - d.sy;
-    if (!d.moved && Math.abs(dx) + Math.abs(dy) > 4) d.moved = true;
+    if (!d.moved && Math.abs(dx) + Math.abs(dy) > 4) {
+      d.moved = true;
+      if (d.mode === 'node') sim.grab(d.id); // a real drag starts here
+    }
     if (d.mode === 'pan') {
       followRef.current = false;
       setView({ ...viewRef.current, x: d.vx + dx, y: d.vy + dy });
-    } else {
+    } else if (d.moved) {
       followRef.current = false;
       const w = toWorld(e.clientX, e.clientY);
       sim.dragTo(d.id, w.x, w.y);
@@ -240,7 +246,11 @@ export function GraphScreen() {
     dragRef.current = null;
     if (d?.mode === 'node') {
       const node = sim.nodes.get(d.id);
-      if (!d.moved && node?.path) navigate('read', node.path);
+      if (!d.moved) {
+        // a click: open the node, leave the simulation alone
+        if (node?.path) navigate('read', node.path);
+        return;
+      }
       sim.release(d.id);
       wake();
     }

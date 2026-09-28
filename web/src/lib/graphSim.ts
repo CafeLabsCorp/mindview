@@ -64,7 +64,7 @@ export interface SimEdge {
   present: boolean;
 }
 
-type Link = SimulationLinkDatum<SimNode> & { kind: 'ff' | 'ft' };
+type Link = SimulationLinkDatum<SimNode>;
 
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeOutBack = (t: number) => {
@@ -94,8 +94,11 @@ export class GraphSim {
   constructor() {
     this.linkForce = forceLink<SimNode, Link>([])
       .id((d) => d.id)
-      .distance((l) => (l.kind === 'ft' ? 42 : 68))
-      .strength((l) => (l.kind === 'ft' ? 0.25 : 0.09));
+      // Tag links behave exactly like note links (Felipe, 2026-09-28). They
+      // used to be shorter (42) and ~3× stiffer (0.25): a tag stuck tight to
+      // its notes and, dragged out, snapped back like a rubber band.
+      .distance(68)
+      .strength(0.09);
 
     this.sim = forceSimulation<SimNode, Link>([])
       .force('charge', forceManyBody<SimNode>().strength((d) => -150 - this.radius(d) * 7).distanceMax(560))
@@ -340,11 +343,7 @@ export class GraphSim {
     for (const e of this.edges.values()) if (!seenE.has(e.id)) e.present = false;
 
     this.active = model.nodes.map((m) => this.nodes.get(m.id)!);
-    const links: Link[] = model.edges.map((e) => ({
-      source: e.from,
-      target: e.to,
-      kind: e.to.startsWith('tag:') || e.from.startsWith('tag:') ? 'ft' : 'ff',
-    }));
+    const links: Link[] = model.edges.map((e) => ({ source: e.from, target: e.to }));
     if (!structural) return; // attributes updated above; layout untouched
     // clear links before swapping the node set — forceLink.initialize()
     // (run by sim.nodes()) resolves its current links against the new

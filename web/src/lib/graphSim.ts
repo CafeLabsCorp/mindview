@@ -1,12 +1,10 @@
 import {
-  forceLink,
   forceManyBody,
   forceSimulation,
   forceX,
   forceY,
-  type ForceLink,
+  type Force,
   type Simulation,
-  type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from 'd3-force';
 import type { GraphModel } from './graphModel';
@@ -64,7 +62,56 @@ export interface SimEdge {
   present: boolean;
 }
 
-type Link = SimulationLinkDatum<SimNode>;
+interface Link {
+  source: SimNode;
+  target: SimNode;
+  /** share of the correction the TARGET takes: d3's degree bias, so a
+   * node with many links is "heavier" and moves less */
+  bias: number;
+}
+
+// Tag links are the same as note links (Felipe, 2026-09-28). Springs at 0.5
+// (were 0.09): Felipe's own Obsidian runs its link force at the maximum;
+// with slack springs the neighbours of a dragged node barely followed.
+const LINK_DISTANCE = 68;
+const LINK_STRENGTH = 0.5;
+
+/**
+ * d3's forceLink, with one change: a node pinned by the mouse doesn't take
+ * its share of the pull. d3 splits each spring's correction between both
+ * ends by degree, and the pinned end's share was simply thrown away. A
+ * tag, linked only to notes that have many links of their own, is "light":
+ * its notes took ~15% of the pull, so dragging a tag left them behind and
+ * it snapped back alone like a rubber band (Felipe, 2026-09-28: "a física
+ * da tag é diferente da dos nós"). The hand is infinitely heavy — whoever
+ * is on the other end of a spring from it takes the whole correction.
+ */
+function linkForce(): Force<SimNode, Link> & { links(l: Link[]): void } {
+  let links: Link[] = [];
+  let alpha = 0;
+  const force = ((a: number) => {
+    alpha = a;
+    for (const { source: s, target: t, bias } of links) {
+      let x = t.x! + t.vx! - s.x! - s.vx! || 1e-6;
+      let y = t.y! + t.vy! - s.y! - s.vy! || 1e-6;
+      let l = Math.sqrt(x * x + y * y);
+      l = ((l - LINK_DISTANCE) / l) * alpha * LINK_STRENGTH;
+      x *= l;
+      y *= l;
+      const sPinned = s.fx != null;
+      const tPinned = t.fx != null;
+      const bt = sPinned && !tPinned ? 1 : tPinned && !sPinned ? 0 : bias;
+      t.vx! -= x * bt;
+      t.vy! -= y * bt;
+      s.vx! += x * (1 - bt);
+      s.vy! += y * (1 - bt);
+    }
+  }) as Force<SimNode, Link> & { links(l: Link[]): void };
+  force.links = (l: Link[]) => {
+    links = l;
+  };
+  return force;
+}
 
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeOutBack = (t: number) => {
@@ -86,23 +133,12 @@ export class GraphSim {
   readonly edges = new Map<string, SimEdge>();
 
   private sim: Simulation<SimNode, Link>;
-  private linkForce: ForceLink<SimNode, Link>;
+  private linkForce = linkForce();
   private active: SimNode[] = [];
   private sizeMul = 1;
   private seeded = false;
 
   constructor() {
-    this.linkForce = forceLink<SimNode, Link>([])
-      .id((d) => d.id)
-      // Tag links behave exactly like note links (Felipe, 2026-09-28). They
-      // used to be shorter (42) and ~3× stiffer (0.25): a tag stuck tight to
-      // its notes and, dragged out, snapped back like a rubber band.
-      // Springs at 0.5 (were 0.09): Felipe's own Obsidian runs its link
-      // force at the maximum; with slack springs the neighbours of a dragged
-      // node barely followed and everything stretched.
-      .distance(68)
-      .strength(0.5);
-
     this.sim = forceSimulation<SimNode, Link>([])
       // theta(0) = exact repulsion instead of the Barnes–Hut approximation.
       // The approximation shifts discontinuously as nodes move between
@@ -358,12 +394,17 @@ export class GraphSim {
     for (const e of this.edges.values()) if (!seenE.has(e.id)) e.present = false;
 
     this.active = model.nodes.map((m) => this.nodes.get(m.id)!);
-    const links: Link[] = model.edges.map((e) => ({ source: e.from, target: e.to }));
     if (!structural) return; // attributes updated above; layout untouched
-    // clear links before swapping the node set — forceLink.initialize()
-    // (run by sim.nodes()) resolves its current links against the new
-    // nodes and throws on any id that just disappeared.
-    this.linkForce.links([]);
+    const count = new Map<string, number>();
+    for (const e of model.edges) {
+      count.set(e.from, (count.get(e.from) ?? 0) + 1);
+      count.set(e.to, (count.get(e.to) ?? 0) + 1);
+    }
+    const links: Link[] = model.edges.map((e) => ({
+      source: this.nodes.get(e.from)!,
+      target: this.nodes.get(e.to)!,
+      bias: count.get(e.from)! / (count.get(e.from)! + count.get(e.to)!),
+    }));
     this.sim.nodes(this.active);
     this.linkForce.links(links);
     this.sim.alpha(this.seeded ? 0.75 : 1).alphaTarget(0);

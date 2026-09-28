@@ -271,4 +271,28 @@ describe('GraphSim', () => {
     expect(jitter / count).toBeLessThan(0.02);
     sim.dispose();
   });
+  it('a dragged tag pulls its notes along even when they have many links of their own', () => {
+    // tag:t has 2 links; each of its notes also links to 6 others of its own,
+    // so by degree the tag is "light". Dragged, its notes must still follow.
+    const ids = ['a.md', 'b.md', ...Array.from({ length: 12 }, (_, i) => `x${i}.md`), 'tag:t'];
+    const links: [string, string][] = [['a.md', 'tag:t'], ['b.md', 'tag:t']];
+    for (let i = 0; i < 12; i++) links.push([i < 6 ? 'a.md' : 'b.md', `x${i}.md`]);
+    const sim = new GraphSim();
+    sim.setModel(model(ids, links));
+    let f = 0;
+    while (sim.tick(16) && f < 5000) f++;
+    const tag = sim.nodes.get('tag:t')!;
+    const a = sim.nodes.get('a.md')!;
+    const b = sim.nodes.get('b.md')!;
+    const [ax, bx] = [a.x!, b.x!];
+    const x0 = tag.x!;
+    sim.grab('tag:t');
+    for (let i = 1; i <= 40; i++) {
+      sim.dragTo('tag:t', x0 + i * 5, tag.y!);
+      sim.tick(16);
+    }
+    // the tag went 200 px right; its notes come a real part of the way
+    expect((a.x! - ax + (b.x! - bx)) / 2).toBeGreaterThan(25);
+    sim.dispose();
+  });
 });

@@ -236,4 +236,45 @@ describe('GraphSim', () => {
     expect(sim.tick(16)).toBe(true);
     sim.dispose();
   });
+
+  it('dragging a node moves only it and its direct neighbours — during the drag AND after the drop', () => {
+    const sim = new GraphSim();
+    const m = hubAndLeaves();
+    m.nodes.push({ ...m.nodes[1], id: 'solto.pdf', path: 'solto.pdf', title: 'solto.pdf' }); // no links
+    sim.setModel(m);
+    let f = 0;
+    while (sim.tick(16) && f < 3000) f++;
+    const at = () => new Map([...sim.nodes.values()].map((n) => [n.id, [n.x!, n.y!]]));
+    const start = at();
+    const others = (except: string[]) => [...sim.nodes.keys()].filter((id) => !except.includes(id));
+
+    // an unlinked file: nothing else may move
+    const pdf = sim.nodes.get('solto.pdf')!;
+    sim.grab('solto.pdf');
+    for (let i = 1; i <= 30; i++) {
+      sim.dragTo('solto.pdf', pdf.x! + 5, pdf.y! + 3);
+      sim.tick(16);
+    }
+    sim.release('solto.pdf');
+    f = 0;
+    while (sim.tick(16) && f < 3000) f++;
+    for (const id of others(['solto.pdf'])) expect(at().get(id), id).toEqual(start.get(id));
+
+    // the hub: its direct neighbours follow, the 2-hop nodes stay put
+    const hub = sim.nodes.get('hub.md')!;
+    const before = at();
+    sim.grab('hub.md');
+    for (let i = 1; i <= 30; i++) {
+      sim.dragTo('hub.md', hub.x! + 5, hub.y! + 3);
+      sim.tick(16);
+    }
+    sim.release('hub.md');
+    f = 0;
+    while (sim.tick(16) && f < 3000) f++;
+    const after = at();
+    expect(after.get('d.md')).toEqual(before.get('d.md')); // 2 hops away
+    expect(after.get('e.md')).toEqual(before.get('e.md')); // 3 hops away
+    expect(after.get('a.md')).not.toEqual(before.get('a.md')); // a direct neighbour followed
+    sim.dispose();
+  });
 });

@@ -145,4 +145,23 @@ describe('GraphSim', () => {
     expect(edge.p).toBe(1);
     sim.dispose();
   });
+  const hubAndLeaves = () =>
+    model(
+      ['hub.md', 'a.md', 'b.md', 'c.md', 'd.md', 'e.md'],
+      [['hub.md', 'a.md'], ['hub.md', 'b.md'], ['hub.md', 'c.md'], ['c.md', 'd.md'], ['d.md', 'e.md']],
+    );
+
+  it('settles and STOPS after a drag is released — no endless shiver', () => {
+    const sim = new GraphSim();
+    sim.setModel(hubAndLeaves());
+    settle(sim);
+    sim.grab('c.md');
+    sim.dragTo('c.md', 300, 200);
+    settle(sim, 30);
+    sim.release('c.md');
+    let frames = 0;
+    while (sim.tick(16) && frames < 2000) frames++;
+    expect(frames).toBeLessThan(2000); // tick() reports "still moving" → it must end
+    sim.dispose();
+  });
 });

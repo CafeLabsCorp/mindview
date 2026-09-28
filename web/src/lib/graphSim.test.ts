@@ -321,4 +321,22 @@ describe('GraphSim', () => {
     expect(speed).toBeLessThan(0.05);
     sim.dispose();
   });
+  it('big nodes do not settle on top of each other', () => {
+    // a dense cluster at the largest node size
+    const ids = Array.from({ length: 30 }, (_, i) => `n${i}.md`);
+    const links: [string, string][] = [];
+    for (let i = 0; i < 30; i++) for (let j = i + 1; j < 30; j += 3) links.push([ids[i], ids[j]]);
+    const sim = new GraphSim();
+    sim.setSizeMul(2.2);
+    sim.setModel(model(ids, links));
+    let f = 0;
+    while (sim.tick(16) && f < 5000) f++;
+    const ns = [...sim.nodes.values()];
+    let overlaps = 0;
+    for (let i = 0; i < ns.length; i++)
+      for (let j = i + 1; j < ns.length; j++)
+        if (Math.hypot(ns[i].x! - ns[j].x!, ns[i].y! - ns[j].y!) < sim.radiusOf(ns[i]) + sim.radiusOf(ns[j])) overlaps++;
+    expect(overlaps).toBe(0);
+    sim.dispose();
+  });
 });

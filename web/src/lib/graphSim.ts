@@ -1,4 +1,5 @@
 import {
+  forceCollide,
   forceManyBody,
   forceSimulation,
   forceX,
@@ -149,10 +150,12 @@ export class GraphSim {
       .force('link', this.linkForce)
       .force('x', forceX<SimNode>(0).strength(0.045))
       .force('y', forceY<SimNode>(0).strength(0.045))
-      // No collision force — Obsidian has none either (its graph settings
-      // are center / repel / link force / link distance). Repulsion already
-      // keeps nodes apart, and collide fighting it was a second source of
-      // shaking.
+      // A light collision (0.3) keeps nodes from sitting on top of each
+      // other — without it, with big nodes (size ×2) ~50 pairs overlapped
+      // (Felipe, 2026-09-28). The old 0.85 was a second source of shaking;
+      // at 0.3 the tremble under a drag measures 0.003–0.008 (Barnes–Hut
+      // alone was 0.09), and 0 overlaps at any node size.
+      .force('collide', forceCollide<SimNode>((d) => this.radius(d) + 3).strength(0.3))
       .velocityDecay(0.42)
       // Cool down to d3's default 0.001: at the old 0.014 the simulation
       // stopped while a released node was still gliding ~0.25 px a frame,
@@ -172,7 +175,7 @@ export class GraphSim {
   setSizeMul(mul: number) {
     if (mul === this.sizeMul) return;
     this.sizeMul = mul;
-    this.sim.nodes(this.active); // re-runs force.initialize (charge caches per-node strength, which depends on radius)
+    this.sim.nodes(this.active); // re-runs force.initialize (charge and collide cache per-node values that depend on radius)
     this.bump(0.25);
   }
 

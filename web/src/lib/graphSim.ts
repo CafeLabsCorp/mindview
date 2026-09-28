@@ -28,7 +28,6 @@ const EXIT_MS = 280;
 // (GraphPrefs.revealStepMs) rather than something derived from the node
 // count — this is the fallback when nobody passes one.
 const DEFAULT_REVEAL_STEP_MS = 20;
-const DRAG_ALPHA_TARGET = 0.12;
 
 /** Order the staged restart brings nodes back in: 'waves' — orphans, then
  * breadth-first from the busiest hub out to the leaves (MindView's own);
@@ -103,12 +102,8 @@ export class GraphSim {
       .force('link', this.linkForce)
       .force('x', forceX<SimNode>(0).strength(0.045))
       .force('y', forceY<SimNode>(0).strength(0.045))
-      // Softer collision + more friction than before (0.85 / 0.42): the
-      // rigid collide fought the repulsion as the layout settled, and nodes
-      // kept shivering against each other instead of coming to rest the way
-      // Obsidian's do (Felipe, 2026-09-27 — Obsidian settles and stops).
-      .force('collide', forceCollide<SimNode>((d) => this.radius(d) + 6).strength(0.5))
-      .velocityDecay(0.55)
+      .force('collide', forceCollide<SimNode>((d) => this.radius(d) + 6).strength(0.85))
+      .velocityDecay(0.42)
       .alphaMin(0.014)
       .stop();
   }
@@ -226,10 +221,7 @@ export class GraphSim {
     if (!n) return;
     n.fx = n.x;
     n.fy = n.y;
-    // Warm, not hot: 0.3 (the d3 example value) set the whole graph moving
-    // under a drag; this keeps the dragged node's neighbours following on
-    // their springs while the rest barely stirs.
-    this.sim.alphaTarget(DRAG_ALPHA_TARGET);
+    this.sim.alphaTarget(0.3);
   }
   dragTo(id: string, x: number, y: number) {
     const n = this.nodes.get(id);

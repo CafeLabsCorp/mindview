@@ -297,18 +297,22 @@ describe('GraphScreen', () => {
     await renderGraph();
     const positions = () =>
       [...container.querySelectorAll('.graph-node')].map((g) => g.getAttribute('transform')).sort();
-    // wait until the layout has actually come to rest
+    // wait until the layout has actually come to rest — three unchanged
+    // readings in a row: the last creep of the ease-out is slower than
+    // the rounding of one 150 ms window
     let before = positions();
-    for (let i = 0; i < 40; i++) {
+    let still = 0;
+    for (let i = 0; i < 80 && still < 3; i++) {
       await act(async () => {
         await new Promise((r) => setTimeout(r, 150));
       });
       const now = positions();
-      if (JSON.stringify(now) === JSON.stringify(before)) break;
+      still = JSON.stringify(now) === JSON.stringify(before) ? still + 1 : 0;
       before = now;
     }
     act(() => root.unmount()); // e.g. a click opened a note
     await renderGraph(); // and back to the Graph
     expect(positions()).toEqual(before);
-  });
+    // settling is a ~300-tick ease-out, i.e. ~5 s of real frames
+  }, 20_000);
 });

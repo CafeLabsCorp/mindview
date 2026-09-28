@@ -1,58 +1,29 @@
 // Scroll to an element that may still be MOVING: content above it (lists
 // that fill in from async fetches) can grow after the page opens and push
-// it down. So this waits until its container has stopped changing size for
-// `settleMs`, then scrolls there ONCE, eased, and calls `onSettled`.
-// (It used to re-align instantly on every change, which reached the right
-// place but "teleported" there — v0.2.3 retest, T.1.) Gives up — without
-// scrolling — if the user scrolls on their own first. Returns a cancel
-// function.
+// it down.
+//
+// History, from Felipe's retests: re-aligning instantly on every change
+// "teleported" (v0.2.3); waiting for the page to settle before one smooth
+// scroll made it hesitate before starting (v0.2.5); the browser's own
+// behavior:'smooth' stops abruptly and can't be tuned (v0.2.4). So: start
+// at once, animate the scroll container ourselves with a strong ease-in-out,
+// and re-read where the element is on EVERY frame — if the content above
+// grows mid-flight, the destination moves and the scroll follows it, with
+// no jump and no wait. Once there, `onSettled` (the border flash).
+
+/** Duration of the eased scroll. */
+const SCROLL_MS = 900;
+/** After arriving, how long to keep an eye out for late growth. */
+const WATCH_AFTER_MS = 600;
 
 export interface FollowOptions {
-  settleMs?: number;
-  /** hard stop, in case the container never stops changing */
-  maxMs?: number;
   onSettled?: (el: HTMLElement) => void;
 }
 
-export function followScrollTo(el: HTMLElement, { settleMs = 200, maxMs = 1500, onSettled }: FollowOptions = {}): () => void {
-  let done = false;
-  let settle: ReturnType<typeof setTimeout> | undefined;
-  const align = () => smoothScrollTo(el);
-  const userEvents = ['wheel', 'touchstart', 'keydown'] as const;
-
-  const finish = (settled: boolean) => {
-    if (done) return;
-    done = true;
-    observer.disconnect();
-    clearTimeout(settle);
-    clearTimeout(cap);
-    userEvents.forEach((ev) => window.removeEventListener(ev, onUser));
-    if (!settled) return;
-    align();
-    onSettled?.(el);
-  };
-  const onUser = () => finish(false);
-
-  const observer = new ResizeObserver(() => {
-    // a notification already queued when the user took over must not
-    // yank the page back
-    if (done) return;
-    clearTimeout(settle);
-    settle = setTimeout(() => finish(true), settleMs);
-  });
-  const cap = setTimeout(() => finish(true), maxMs);
-
-  observer.observe(el.parentElement ?? document.body);
-  userEvents.forEach((ev) => window.addEventListener(ev, onUser, { passive: true }));
-  return () => finish(false);
-}
-
-/** How long the eased scroll takes. */
-const SCROLL_MS = 650;
-
-/** Slow start, fast middle, slow finish. */
-function easeInOutCubic(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+/** Slow start, fast middle, slow finish — quartic, softer at both ends
+ * than cubic (v0.2.5 retest). */
+export function easeInOutQuart(t: number): number {
+  return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
 }
 
 function scrollParent(el: HTMLElement): HTMLElement {
@@ -63,39 +34,74 @@ function scrollParent(el: HTMLElement): HTMLElement {
   return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
 }
 
-/** Scrolls `el` to the top of its scroll container with an ease-in-out
- * curve. The browser's own `behavior: 'smooth'` has a fixed curve that
- * stops abruptly (v0.2.4 retest) and can't be tuned, so this animates
- * scrollTop itself. Reduced motion → a plain jump. A wheel/touch/key from
- * the user cancels it. */
-export function smoothScrollTo(el: HTMLElement): void {
+/** Where `box.scrollTop` must be for `el` to sit at the top of `box`, now. */
+function targetFor(box: HTMLElement, el: HTMLElement): number {
+  const boxTop = box === document.scrollingElement ? 0 : box.getBoundingClientRect().top;
+  const want = box.scrollTop + el.getBoundingClientRect().top - boxTop;
+  return Math.max(0, Math.min(box.scrollHeight - box.clientHeight, want));
+}
+
+/** Eased scroll to `el`, chasing it if it moves. Resolves true when it
+ * arrived, false if the user took over (wheel/touch/key). */
+export function smoothScrollTo(el: HTMLElement): Promise<boolean> {
   const box = scrollParent(el);
   const from = box.scrollTop;
-  const to = Math.min(
-    box.scrollHeight - box.clientHeight,
-    from + el.getBoundingClientRect().top - (box === document.scrollingElement ? 0 : box.getBoundingClientRect().top),
-  );
-  if (Math.abs(to - from) < 1) return;
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-    box.scrollTop = to;
-    return;
+    box.scrollTop = targetFor(box, el);
+    return Promise.resolve(true);
   }
+  return new Promise((resolve) => {
+    let cancelled = false;
+    const events = ['wheel', 'touchstart', 'keydown'] as const;
+    const cancel = () => {
+      cancelled = true;
+      events.forEach((ev) => window.removeEventListener(ev, cancel));
+      resolve(false);
+    };
+    events.forEach((ev) => window.addEventListener(ev, cancel, { passive: true }));
+    // Timed on the frames' own clock (the first frame is t=0), not
+    // performance.now(), which may not share its origin.
+    let start: number | null = null;
+    const step = (now: number) => {
+      if (cancelled) return;
+      if (start === null) start = now;
+      const t = Math.min(1, (now - start) / SCROLL_MS);
+      const to = targetFor(box, el); // re-read: the content may have grown
+      box.scrollTop = from + (to - from) * easeInOutQuart(t);
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        events.forEach((ev) => window.removeEventListener(ev, cancel));
+        resolve(true);
+      }
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+/** Scrolls to `el` right away (see top), then keeps watching briefly for
+ * content that grew after the scroll ended, easing again if it did.
+ * Returns a cancel function. */
+export function followScrollTo(el: HTMLElement, { onSettled }: FollowOptions = {}): () => void {
   let cancelled = false;
-  const cancel = () => {
+  let watch: ReturnType<typeof setTimeout> | undefined;
+
+  const run = async () => {
+    const arrived = await smoothScrollTo(el);
+    if (!arrived || cancelled) return;
+    onSettled?.(el);
+    // A list that arrived after the scroll ended pushed the section down:
+    // one more eased hop, no second flash.
+    watch = setTimeout(() => {
+      if (cancelled) return;
+      const box = scrollParent(el);
+      if (Math.abs(targetFor(box, el) - box.scrollTop) > 4) void smoothScrollTo(el);
+    }, WATCH_AFTER_MS);
+  };
+  void run();
+
+  return () => {
     cancelled = true;
+    clearTimeout(watch);
   };
-  const events = ['wheel', 'touchstart', 'keydown'] as const;
-  events.forEach((ev) => window.addEventListener(ev, cancel, { passive: true, once: true }));
-  // Timed on the frames' own clock (the first frame is t=0), not
-  // performance.now(), which may not share its origin.
-  let start: number | null = null;
-  const step = (now: number) => {
-    if (cancelled) return;
-    if (start === null) start = now;
-    const t = Math.min(1, (now - start) / SCROLL_MS);
-    box.scrollTop = from + (to - from) * easeInOutCubic(t);
-    if (t < 1) requestAnimationFrame(step);
-    else events.forEach((ev) => window.removeEventListener(ev, cancel));
-  };
-  requestAnimationFrame(step);
 }

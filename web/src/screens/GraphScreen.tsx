@@ -39,6 +39,13 @@ function fitView(
   };
 }
 
+/** What outlives the Graph screen between visits: the simulation (every
+ * node's position) and the camera. Leaving the screen — opening a note,
+ * going to Settings — and coming back shows the graph exactly as it was,
+ * like Obsidian's; only ↻ re-lays it out (Felipe, 2026-09-27). It used to
+ * be rebuilt from scratch on every visit. */
+const kept: { sim: GraphSim | null; view: View | null; follow: boolean } = { sim: null, view: null, follow: true };
+
 export function GraphScreen() {
   const { data, loading, error } = useApi<VaultGraph>('/graph');
   const { settings } = useSettings();
@@ -60,7 +67,7 @@ export function GraphScreen() {
 
   // --- sim + render loop -------------------------------------------------
   const simRef = useRef<GraphSim | null>(null);
-  if (simRef.current === null) simRef.current = new GraphSim();
+  if (simRef.current === null) simRef.current = kept.sim ??= new GraphSim();
   const sim = simRef.current;
 
   const [, bumpFrame] = useReducer((n: number) => (n + 1) & 0xffff, 0);
@@ -73,10 +80,14 @@ export function GraphScreen() {
   const sizeRef = useRef(size);
   sizeRef.current = size;
 
-  const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 });
+  const [view, setView] = useState<View>(() => kept.view ?? { x: 0, y: 0, k: 1 });
   const viewRef = useRef(view);
   viewRef.current = view;
-  const followRef = useRef(true); // auto-frame until the user pans/zooms/drags
+  const followRef = useRef(kept.view ? kept.follow : true); // auto-frame until the user pans/zooms/drags
+  useEffect(() => {
+    kept.view = view;
+    kept.follow = followRef.current;
+  }, [view]);
   const viewTweenRef = useRef<{ from: View; to: View; t0: number; dur: number } | null>(null);
 
   const dragRef = useRef<
@@ -166,7 +177,8 @@ export function GraphScreen() {
       rafRef.current = undefined;
       runningRef.current = false;
       lastTsRef.current = 0;
-      sim.dispose();
+      kept.follow = followRef.current;
+      // the sim is NOT disposed: it is `kept` for the next visit
     };
   }, [sim]);
 

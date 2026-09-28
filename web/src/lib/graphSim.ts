@@ -246,7 +246,18 @@ export class GraphSim {
     this.sim.alphaTarget(0);
   }
 
+  /** Node + edge ids of the last model, to tell a real change from the
+   * same graph handed over again. */
+  private structureKey = '';
+
   setModel(model: GraphModel) {
+    // The same graph again (opening the Graph screen, a colour or label
+    // setting) must not move anything: Obsidian's graph only re-lays out
+    // when you ask it to (Felipe, 2026-09-27). Only a structural change
+    // — nodes or edges added/removed — reheats below.
+    const key = model.nodes.map((n) => n.id).join('\n') + '\u0000' + model.edges.map((e) => e.id).join('\n');
+    const structural = key !== this.structureKey;
+    this.structureKey = key;
     const seenN = new Set<string>();
     for (const m of model.nodes) {
       seenN.add(m.id);
@@ -342,6 +353,7 @@ export class GraphSim {
       target: e.to,
       kind: e.to.startsWith('tag:') || e.from.startsWith('tag:') ? 'ft' : 'ff',
     }));
+    if (!structural) return; // attributes updated above; layout untouched
     // clear links before swapping the node set — forceLink.initialize()
     // (run by sim.nodes()) resolves its current links against the new
     // nodes and throws on any id that just disappeared.
@@ -389,8 +401,14 @@ export class GraphSim {
       if (!e.present && e.p <= 0) this.edges.delete(e.id);
     }
 
-    this.sim.tick();
-    return animating || this.sim.alpha() > this.sim.alphaMin();
+    // At rest means at rest: below alphaMin (and with nothing pinned by a
+    // drag keeping it warm) the forces are not applied at all. Ticking
+    // anyway nudged every node a fraction of a pixel on each wake-up — a
+    // hover, a resize — so the graph never truly stopped (Felipe wants
+    // Obsidian's: settles, then stays put).
+    const warm = this.sim.alpha() >= this.sim.alphaMin() || this.sim.alphaTarget() > 0;
+    if (warm) this.sim.tick();
+    return animating || warm;
   }
 
   bounds(): { minX: number; minY: number; maxX: number; maxY: number } | null {

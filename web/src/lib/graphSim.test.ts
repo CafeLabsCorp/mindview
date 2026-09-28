@@ -219,4 +219,21 @@ describe('GraphSim', () => {
     expect(frames).toBeLessThan(2000); // tick() reports "still moving" → it must end
     sim.dispose();
   });
+
+  it('the same graph handed over again moves nothing — only a structural change re-lays out', () => {
+    const sim = new GraphSim();
+    sim.setModel(hubAndLeaves());
+    let frames = 0;
+    while (sim.tick(16) && frames < 3000) frames++;
+    const before = [...sim.nodes.values()].map((n) => [n.id, n.x, n.y]);
+    sim.setModel(hubAndLeaves()); // e.g. the Graph screen opened again
+    expect(sim.tick(16)).toBe(false); // nothing to animate
+    expect([...sim.nodes.values()].map((n) => [n.id, n.x, n.y])).toEqual(before);
+    // a real change (a new note) does reheat
+    const grown = hubAndLeaves();
+    grown.nodes.push({ ...grown.nodes[1], id: 'f.md', path: 'f.md', title: 'f.md' });
+    sim.setModel(grown);
+    expect(sim.tick(16)).toBe(true);
+    sim.dispose();
+  });
 });

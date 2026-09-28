@@ -292,4 +292,23 @@ describe('GraphScreen', () => {
     expect(grab).toHaveBeenCalledOnce();
     fire(svg, 'pointerup', 130, 120);
   });
+
+  it('leaving the Graph screen and coming back keeps every node where it was', async () => {
+    await renderGraph();
+    const positions = () =>
+      [...container.querySelectorAll('.graph-node')].map((g) => g.getAttribute('transform')).sort();
+    // wait until the layout has actually come to rest
+    let before = positions();
+    for (let i = 0; i < 40; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 150));
+      });
+      const now = positions();
+      if (JSON.stringify(now) === JSON.stringify(before)) break;
+      before = now;
+    }
+    act(() => root.unmount()); // e.g. a click opened a note
+    await renderGraph(); // and back to the Graph
+    expect(positions()).toEqual(before);
+  });
 });

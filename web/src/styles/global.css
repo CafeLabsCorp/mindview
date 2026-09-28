@@ -1389,6 +1389,7 @@ input[type='color']::-moz-color-swatch {
   cursor: pointer;
 }
 .gc-search,
+.gc-select,
 .gc-group input[type='text'] {
   width: 100%;
   padding: 5px 8px;

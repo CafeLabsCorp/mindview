@@ -145,11 +145,66 @@ describe('GraphSim', () => {
     expect(edge.p).toBe(1);
     sim.dispose();
   });
+
+  /** Order nodes first become visible during a staged restart. */
+  function revealSequence(sim: GraphSim): string[] {
+    const seen: string[] = [];
+    for (let i = 0; i < 400 && seen.length < sim.nodes.size; i++) {
+      sim.tick(16);
+      for (const n of sim.nodes.values()) if (n.p > 0 && !seen.includes(n.id)) seen.push(n.id);
+    }
+    return seen;
+  }
   const hubAndLeaves = () =>
     model(
       ['hub.md', 'a.md', 'b.md', 'c.md', 'd.md', 'e.md'],
       [['hub.md', 'a.md'], ['hub.md', 'b.md'], ['hub.md', 'c.md'], ['c.md', 'd.md'], ['d.md', 'e.md']],
     );
+
+  it('"waves" restart grows out from the busiest hub', () => {
+    const sim = new GraphSim();
+    sim.setModel(hubAndLeaves());
+    settle(sim);
+    sim.restart(20, 'waves');
+    const order = revealSequence(sim);
+    expect(order[0]).toBe('hub.md');
+    expect(order.indexOf('e.md')).toBe(order.length - 1); // the far leaf comes last
+    sim.dispose();
+  });
+
+  it('"random" restart brings nodes back in a shuffled order — Obsidian-style', () => {
+    let seed = 7;
+    const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const sim = new GraphSim();
+    sim.setModel(hubAndLeaves());
+    settle(sim);
+    sim.restart(20, 'random', rng);
+    const order = revealSequence(sim);
+    expect(order.sort()).toEqual(['a.md', 'b.md', 'c.md', 'd.md', 'e.md', 'hub.md']); // everyone comes back
+    sim.restart(20, 'random', rng);
+    const again = revealSequence(sim);
+    sim.restart(20, 'waves');
+    const waves = revealSequence(sim);
+    expect(again).not.toEqual(waves);
+    sim.dispose();
+  });
+
+  it('an edge only appears once both of its ends are on screen', () => {
+    const sim = new GraphSim();
+    sim.setModel(hubAndLeaves());
+    settle(sim);
+    sim.restart(40, 'random');
+    for (let i = 0; i < 200; i++) {
+      sim.tick(16);
+      for (const e of sim.edges.values()) {
+        if (e.p > 0) {
+          expect(sim.nodes.get(e.from)!.p).toBeGreaterThan(0);
+          expect(sim.nodes.get(e.to)!.p).toBeGreaterThan(0);
+        }
+      }
+    }
+    sim.dispose();
+  });
 
   it('settles and STOPS after a drag is released — no endless shiver', () => {
     const sim = new GraphSim();

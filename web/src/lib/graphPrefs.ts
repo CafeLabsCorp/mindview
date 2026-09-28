@@ -43,6 +43,9 @@ export interface GraphPrefs {
    * whole graph comes back at once. Used to be derived from the node count
    * (2400ms/n, clamped) — now it's just a number the user sets. */
   revealStepMs: number; // 0 .. 150
+  /** How ↻ brings the graph back: 'waves' from the busiest hub outward, or
+   * 'random' like Obsidian (see graphSim.RevealMode). */
+  revealMode: 'waves' | 'random';
 }
 
 const KEY = 'mindview.graphPrefs.v2';
@@ -61,6 +64,7 @@ export const DEFAULT_GRAPH_PREFS: GraphPrefs = {
   arrows: false,
   textFadeThreshold: 0.45,
   revealStepMs: 20,
+  revealMode: 'waves',
 };
 
 export function loadGraphPrefs(): GraphPrefs {
@@ -74,6 +78,7 @@ export function loadGraphPrefs(): GraphPrefs {
       groups: Array.isArray(parsed.groups)
         ? parsed.groups.filter((g): g is GraphGroup => !!g && typeof g.query === 'string')
         : [],
+      revealMode: parsed.revealMode === 'random' ? 'random' : 'waves',
       hiddenExts: Array.isArray(parsed.hiddenExts) ? parsed.hiddenExts.filter((e): e is string => typeof e === 'string') : [],
     };
   } catch {

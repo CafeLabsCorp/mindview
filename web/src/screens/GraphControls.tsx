@@ -195,6 +195,18 @@ export function GraphControls({ prefs, setPref, onReset, nodeCount, edgeCount, e
               onChange={(v) => setPref('textFadeThreshold', v)}
               format={(v) => (v === 0 ? t('graph.labelAlways') : `${Math.round(v * 100)}%`)}
             />
+            <div className="gc-slider">
+              <label htmlFor="gc-reveal-mode">{t('graph.revealMode')}</label>
+              <select
+                id="gc-reveal-mode"
+                className="gc-select"
+                value={prefs.revealMode}
+                onChange={(e) => setPref('revealMode', e.target.value === 'random' ? 'random' : 'waves')}
+              >
+                <option value="waves">{t('graph.revealWaves')}</option>
+                <option value="random">{t('graph.revealRandom')}</option>
+              </select>
+            </div>
             <Slider
               label={t('graph.revealStep')}
               value={prefs.revealStepMs}

@@ -402,7 +402,7 @@ export function GraphScreen() {
         <div className="graph-toolbar">
           <button
             onClick={() => {
-              sim.restart(prefs.revealStepMs);
+              sim.restart(prefs.revealStepMs, prefs.revealMode);
               followRef.current = true;
               wake();
             }}

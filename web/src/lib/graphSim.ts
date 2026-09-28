@@ -30,6 +30,12 @@ const EXIT_MS = 280;
 const DEFAULT_REVEAL_STEP_MS = 20;
 const DRAG_ALPHA_TARGET = 0.12;
 
+/** Order the staged restart brings nodes back in: 'waves' — orphans, then
+ * breadth-first from the busiest hub out to the leaves (MindView's own);
+ * 'random' — shuffled, the way Obsidian's graph animates. Either way an
+ * edge only appears once both its ends are on screen. */
+export type RevealMode = 'waves' | 'random';
+
 export interface SimNode extends SimulationNodeDatum {
   id: string;
   kind: 'file' | 'tag';
@@ -134,9 +140,10 @@ export class GraphSim {
    *
    * @param stepMs gap between consecutive nodes; 0 brings the whole graph
    *               back at once (the stagger's off-switch).
+   * @param mode   'waves' (default, below) or 'random' (Obsidian's way).
    */
-  restart(stepMs: number = DEFAULT_REVEAL_STEP_MS) {
-    const order = this.revealOrder();
+  restart(stepMs: number = DEFAULT_REVEAL_STEP_MS, mode: RevealMode = 'waves', random: () => number = Math.random) {
+    const order = mode === 'random' ? this.shuffledOrder(random) : this.revealOrder();
     const step = Math.max(0, stepMs);
 
     for (const n of this.nodes.values()) {
@@ -160,6 +167,16 @@ export class GraphSim {
     for (const e of this.edges.values()) e.p = 0;
 
     this.sim.alpha(1).alphaTarget(0);
+  }
+
+  /** Every present node, Fisher–Yates shuffled. */
+  private shuffledOrder(random: () => number): string[] {
+    const ids = [...this.nodes.values()].filter((n) => n.present).map((n) => n.id);
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    return ids;
   }
 
   /** Orphans, then breadth-first from the most-connected node of each

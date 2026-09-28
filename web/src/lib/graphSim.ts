@@ -146,7 +146,6 @@ export class GraphSim {
     const order = mode === 'random' ? this.shuffledOrder(random) : this.revealOrder();
     const step = Math.max(0, stepMs);
 
-    this.frozen.clear();
     for (const n of this.nodes.values()) {
       n.fx = null;
       n.fy = null;
@@ -222,34 +221,9 @@ export class GraphSim {
     return out;
   }
 
-  /** Nodes held still while something is dragged (see grab). */
-  private frozen = new Set<SimNode>();
-
-  /**
-   * Start dragging `id`. Only the node and its DIRECT neighbours are free
-   * to move; everything else is held where it is until the layout has
-   * settled again after the drop. Measured on the real vault (2026-09-27):
-   * dragging an unlinked PDF used to move all 157 other nodes ~5 px during
-   * the drag and ~12 px after it — a settled layout is only near
-   * equilibrium, so any reheat set the WHOLE graph drifting. Frozen, they
-   * move 0 px; the neighbours still follow on their springs.
-   */
   grab(id: string) {
     const n = this.nodes.get(id);
     if (!n) return;
-    this.thaw();
-    const neighbours = new Set<string>();
-    for (const e of this.edges.values()) {
-      if (!e.present) continue;
-      if (e.from === id) neighbours.add(e.to);
-      else if (e.to === id) neighbours.add(e.from);
-    }
-    for (const other of this.nodes.values()) {
-      if (other.id === id || neighbours.has(other.id) || other.fx != null) continue;
-      other.fx = other.x;
-      other.fy = other.y;
-      this.frozen.add(other);
-    }
     n.fx = n.x;
     n.fy = n.y;
     // Warm, not hot: 0.3 (the d3 example value) set the whole graph moving
@@ -263,8 +237,6 @@ export class GraphSim {
     n.fx = x;
     n.fy = y;
   }
-  /** Drop the dragged node. The rest stays frozen until the layout comes
-   * to rest again (tick() thaws it), so the drop only settles locally. */
   release(id: string) {
     const n = this.nodes.get(id);
     if (n) {
@@ -272,14 +244,6 @@ export class GraphSim {
       n.fy = null;
     }
     this.sim.alphaTarget(0);
-  }
-
-  private thaw() {
-    for (const n of this.frozen) {
-      n.fx = null;
-      n.fy = null;
-    }
-    this.frozen.clear();
   }
 
   /** Node + edge ids of the last model, to tell a real change from the
@@ -444,9 +408,6 @@ export class GraphSim {
     // Obsidian's: settles, then stays put).
     const warm = this.sim.alpha() >= this.sim.alphaMin() || this.sim.alphaTarget() > 0;
     if (warm) this.sim.tick();
-    // at rest after a drag: let go of the nodes held still for it — with
-    // the forces off below alphaMin, releasing them moves nothing
-    else if (this.frozen.size > 0) this.thaw();
     return animating || warm;
   }
 

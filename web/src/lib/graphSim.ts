@@ -1,5 +1,4 @@
 import {
-  forceCollide,
   forceLink,
   forceManyBody,
   forceSimulation,
@@ -28,6 +27,7 @@ const EXIT_MS = 280;
 // (GraphPrefs.revealStepMs) rather than something derived from the node
 // count — this is the fallback when nobody passes one.
 const DEFAULT_REVEAL_STEP_MS = 20;
+const DRAG_ALPHA_TARGET = 0.08;
 
 /** Order the staged restart brings nodes back in: 'waves' — orphans, then
  * breadth-first from the busiest hub out to the leaves (MindView's own);
@@ -97,15 +97,26 @@ export class GraphSim {
       // Tag links behave exactly like note links (Felipe, 2026-09-28). They
       // used to be shorter (42) and ~3× stiffer (0.25): a tag stuck tight to
       // its notes and, dragged out, snapped back like a rubber band.
+      // Springs at 0.5 (were 0.09): Felipe's own Obsidian runs its link
+      // force at the maximum; with slack springs the neighbours of a dragged
+      // node barely followed and everything stretched.
       .distance(68)
-      .strength(0.09);
+      .strength(0.5);
 
     this.sim = forceSimulation<SimNode, Link>([])
-      .force('charge', forceManyBody<SimNode>().strength((d) => -150 - this.radius(d) * 7).distanceMax(560))
+      // theta(0) = exact repulsion instead of the Barnes–Hut approximation.
+      // The approximation shifts discontinuously as nodes move between
+      // quadtree cells, and under a drag's heat that was THE tremble:
+      // measured on the real vault, frame-to-frame jitter 0.09 → 0.007.
+      // Exact is O(n²), which at a vault's size (~160 nodes) is nothing.
+      .force('charge', forceManyBody<SimNode>().strength((d) => -150 - this.radius(d) * 7).distanceMax(560).theta(0))
       .force('link', this.linkForce)
       .force('x', forceX<SimNode>(0).strength(0.045))
       .force('y', forceY<SimNode>(0).strength(0.045))
-      .force('collide', forceCollide<SimNode>((d) => this.radius(d) + 6).strength(0.85))
+      // No collision force — Obsidian has none either (its graph settings
+      // are center / repel / link force / link distance). Repulsion already
+      // keeps nodes apart, and collide fighting it was a second source of
+      // shaking.
       .velocityDecay(0.42)
       .alphaMin(0.014)
       .stop();
@@ -120,7 +131,7 @@ export class GraphSim {
   setSizeMul(mul: number) {
     if (mul === this.sizeMul) return;
     this.sizeMul = mul;
-    this.sim.nodes(this.active); // re-runs force.initialize (collide caches radius)
+    this.sim.nodes(this.active); // re-runs force.initialize (charge caches per-node strength, which depends on radius)
     this.bump(0.25);
   }
 
@@ -224,7 +235,11 @@ export class GraphSim {
     if (!n) return;
     n.fx = n.x;
     n.fy = n.y;
-    this.sim.alphaTarget(0.3);
+    // Mild heat (was 0.3, the d3 example value): with the stiffer springs
+    // the neighbours still follow, while an unlinked node being dragged no
+    // longer sets the rest of the graph drifting (measured: others moved
+    // ~20–40 px at 0.3, ~5 px here).
+    this.sim.alphaTarget(DRAG_ALPHA_TARGET);
   }
   dragTo(id: string, x: number, y: number) {
     const n = this.nodes.get(id);

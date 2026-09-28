@@ -236,4 +236,39 @@ describe('GraphSim', () => {
     expect(sim.tick(16)).toBe(true);
     sim.dispose();
   });
+
+  it('dragging an unlinked node through the graph barely disturbs the others, and they do not tremble', () => {
+    // 40 notes in a few linked clusters, plus one unlinked file
+    const ids = Array.from({ length: 40 }, (_, i) => `n${i}.md`);
+    const links: [string, string][] = ids.slice(1).map((id, i) => [ids[Math.floor(i / 4) * 4], id]);
+    const sim = new GraphSim();
+    sim.setModel(model([...ids, 'solto.pdf'], links));
+    let f = 0;
+    while (sim.tick(16) && f < 5000) f++;
+    const others = [...sim.nodes.values()].filter((n) => n.id !== 'solto.pdf');
+    const start = others.map((n) => [n.x!, n.y!]);
+    const pdf = sim.nodes.get('solto.pdf')!;
+    const x0 = pdf.x!, y0 = pdf.y!;
+    const hist: number[][][] = [];
+    sim.grab('solto.pdf');
+    for (let i = 1; i <= 60; i++) {
+      sim.dragTo('solto.pdf', x0 + i * 3, y0 + i * 1.5);
+      sim.tick(16);
+      hist.push(others.map((n) => [n.x!, n.y!]));
+    }
+    sim.release('solto.pdf');
+    const moved = others.reduce((acc, n, j) => acc + Math.hypot(n.x! - start[j][0], n.y! - start[j][1]), 0) / others.length;
+    expect(moved).toBeLessThan(8);
+    // tremble = change in acceleration frame to frame (third difference)
+    let jitter = 0;
+    let count = 0;
+    for (let k = 3; k < hist.length; k++)
+      for (let j = 0; j < others.length; j++) {
+        const d = (a: number) => hist[k][j][a] - 3 * hist[k - 1][j][a] + 3 * hist[k - 2][j][a] - hist[k - 3][j][a];
+        jitter += Math.hypot(d(0), d(1));
+        count++;
+      }
+    expect(jitter / count).toBeLessThan(0.02);
+    sim.dispose();
+  });
 });

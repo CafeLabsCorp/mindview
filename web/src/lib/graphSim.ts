@@ -154,7 +154,12 @@ export class GraphSim {
       // keeps nodes apart, and collide fighting it was a second source of
       // shaking.
       .velocityDecay(0.42)
-      .alphaMin(0.014)
+      // Cool down to d3's default 0.001: at the old 0.014 the simulation
+      // stopped while a released node was still gliding ~0.25 px a frame,
+      // so it halted with a jolt (Felipe, 2026-09-28). Now it has slowed to
+      // ~0.02 when it stops — an ease-out. Cooling faster than d3's default
+      // decay left the graph less settled, and a drag then stirred it.
+      .alphaMin(0.001)
       .stop();
   }
 

@@ -295,4 +295,30 @@ describe('GraphSim', () => {
     expect((a.x! - ax + (b.x! - bx)) / 2).toBeGreaterThan(25);
     sim.dispose();
   });
+
+  it('a released node eases to a stop instead of halting mid-glide', () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `n${i}.md`);
+    const sim = new GraphSim();
+    sim.setModel(model(ids, ids.slice(1).map((id) => ['n0.md', id] as [string, string])));
+    let f = 0;
+    while (sim.tick(16) && f < 5000) f++;
+    const n = sim.nodes.get('n3.md')!;
+    const x0 = n.x!;
+    sim.grab('n3.md');
+    for (let i = 1; i <= 30; i++) {
+      sim.dragTo('n3.md', x0 + i * 5, n.y!);
+      sim.tick(16);
+    }
+    sim.release('n3.md');
+    let [px, py, speed] = [n.x!, n.y!, 0];
+    f = 0;
+    while (sim.tick(16) && f < 5000) {
+      speed = Math.hypot(n.x! - px, n.y! - py);
+      [px, py] = [n.x!, n.y!];
+      f++;
+    }
+    // the last frame of motion is imperceptible, not a glide cut short
+    expect(speed).toBeLessThan(0.05);
+    sim.dispose();
+  });
 });

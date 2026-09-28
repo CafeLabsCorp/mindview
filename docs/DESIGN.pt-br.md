@@ -211,6 +211,11 @@ partes neutras são `currentColor` pra wordmark funcionar nos dois temas; o
 verde fica literal `#3FB950`. Não reintroduzir uma terceira cor de marca —
 mesma regra que matou o `--blue`.
 
+**Na sidebar do app** aparece só a grade do VIEW — verde, sem placa, sem
+a metade MiND (Felipe, 2026-09-27; `web/src/components/BrandLogo.tsx`,
+quadrado de 24 px). O wordmark completo continua sendo o da marca, pra docs
+e site.
+
 **Ícone do app** (`icon.svg`, espelhado em `web/public/favicon.svg`): a
 palavra **VIEW** como grade monoespaçada 2×2, verde `#3FB950` sobre uma
 placa `#0d0d0d` de cantos arredondados (raio 22%). Um ícone de app é dono

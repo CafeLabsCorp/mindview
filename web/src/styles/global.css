@@ -173,13 +173,11 @@ input:focus-visible,
   justify-content: space-between;
   gap: 8px;
 }
-/* The wordmark (Felipe's, 2026-09-09). Neutral stems are currentColor so it
-   follows the theme — see BrandLogo.tsx. Sized by width to keep the same
-   footprint the old dot + label had; height follows the viewBox. */
+/* The VIEW mark (the green half of Felipe's wordmark — see BrandLogo.tsx).
+   Square, so sized to about the height of the row's controls. */
 .sidebar-brand .brand-logo {
-  width: 48px;
-  height: auto;
-  color: var(--fg);
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
 }
 

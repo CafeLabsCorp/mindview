@@ -203,6 +203,10 @@ neutral parts are `currentColor` so the wordmark works on either theme;
 green stays literal `#3FB950`. Do not reintroduce a third brand hue — same
 rule that killed `--blue`.
 
+**In the app's sidebar** only the VIEW grid is shown — green, no plate,
+no MiND half (Felipe, 2026-09-27; `web/src/components/BrandLogo.tsx`,
+24 px square). The full wordmark stays the brand's for docs and the site.
+
 **App icon** (`icon.svg`, mirrored to `web/public/favicon.svg`): the word
 **VIEW** as a 2×2 monospaced grid, green `#3FB950` on a `#0d0d0d` rounded
 plate (22% radius). An app icon owns its background, so it does **not**

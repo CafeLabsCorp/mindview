@@ -195,26 +195,21 @@ não uma decisão tomada de propósito.
 
 ## Logo e ícone
 
-As duas marcas derivam da gramática da logo do Mind — hastes claras são
-*nós*, o verde é a *ligação* entre eles — e foram desenhadas pelo Felipe
-(2026-09-09). Os arquivos vivem em `docs/assets/`.
+As duas marcas (logo e ícone do app) são a palavra **VIEW** como grade
+monoespaçada 2×2, desenhadas pelo Felipe (2026-09-09). O verde é o accent do
+Mind. Os arquivos vivem em `docs/assets/`.
 
-**Wordmark** (`logo.svg`, mais `logo-dark.svg` / `logo-light.svg` pra
-`<picture>` no Markdown): "MiND" na construção de hastes compartilhadas —
-três hastes claras, um chevron / ponto / diagonal / arco verde separando as
-letras, o nó do "D" com um disco verde e halo — seguido de **VIEW** como
-grade monoespaçada 2×2 verde (a mesma marca do ícone do app). As hastes são
-da **mesma neutra**, não uma terceira cor: um rascunho anterior deu ao VIEW um mostarda
-(`#EFAC39`) e foi descartado — lia como âmbar de aviso, colidia com a
-paleta ANSI de tags e reprovava no WCAG sobre o fundo claro (1.9:1). As
-partes neutras são `currentColor` pra wordmark funcionar nos dois temas; o
-verde fica literal `#3FB950`. Não reintroduzir uma terceira cor de marca —
-mesma regra que matou o `--blue`.
+**Logo** (`logo.svg`): a grade do VIEW em verde `#3FB950`, sem placa e sem
+fundo. O verde é literal, então lê bem nos dois temas e um arquivo só serve
+pros dois (sem par `<picture>` dark/light). O wordmark "MiND + VIEW"
+(2026-09-09) foi **descontinuado em 2026-10-07**: complexo demais (Felipe); o
+VIEW sozinho é a marca. Um rascunho ainda anterior deu ao VIEW um mostarda
+(`#EFAC39`) e foi descartado: lia como âmbar de aviso, colidia com a paleta
+ANSI de tags e reprovava no WCAG sobre o fundo claro (1.9:1). Não reintroduzir
+uma terceira cor de marca — mesma regra que matou o `--blue`.
 
-**Na sidebar do app** aparece só a grade do VIEW — verde, sem placa, sem
-a metade MiND (Felipe, 2026-09-27; `web/src/components/BrandLogo.tsx`,
-quadrado de 24 px). O wordmark completo continua sendo o da marca, pra docs
-e site.
+**Na sidebar do app** aparece a mesma grade do VIEW — verde, sem placa
+(`web/src/components/BrandLogo.tsx`, quadrado de 24 px).
 
 **Ícone do app** (`icon.svg`, espelhado em `web/public/favicon.svg`): a
 palavra **VIEW** como grade monoespaçada 2×2, verde `#3FB950` sobre uma

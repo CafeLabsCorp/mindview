@@ -1,9 +1,6 @@
 **[Leia em Português](README.pt-br.md)**
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-  <img alt="MindView" src="docs/assets/logo-light.svg" width="300">
-</picture>
+<img alt="MindView" src="docs/assets/logo.svg" width="140">
 
 # MindView (MV)
 

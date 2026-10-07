@@ -1,9 +1,7 @@
-// The sidebar mark: just the VIEW half of Felipe's MindView wordmark
-// (2026-09-09) — the 2×2 green grid of V/I/E/W — with the MIND half
-// dropped (Felipe, 2026-09-27). Same paths as the full artwork, viewBox
-// cropped to the VIEW square; all green, no background. The full wordmark
-// and the app icon are unchanged: docs/assets/logo.svg, docs/DESIGN.md
-// ("Logo & icon").
+// The sidebar mark: the VIEW grid (2×2 green V/I/E/W, Felipe 2026-09-09),
+// which is now the brand's one official logo — the "MiND + VIEW" wordmark
+// was discontinued on 2026-10-07. All green, no background. Same artwork as
+// docs/assets/logo.svg; see docs/DESIGN.md ("Logo & icon").
 export function BrandLogo({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="1774 199 781 781" role="img" aria-label="MindView" xmlns="http://www.w3.org/2000/svg">

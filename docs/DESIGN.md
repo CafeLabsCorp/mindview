@@ -187,25 +187,21 @@ animation is added, not a decision made on purpose.
 
 ## Logo & icon
 
-Both marks are derived from the Mind logo's grammar — light stems are
-*nodes*, green is the *link* between them — and were drawn by Felipe
-(2026-09-09). Assets live in `docs/assets/`.
+Both marks (logo and app icon) are the word **VIEW** as a 2×2 monospaced
+grid, drawn by Felipe (2026-09-09). The green is the Mind accent. Assets live
+in `docs/assets/`.
 
-**Wordmark** (`logo.svg`, plus `logo-dark.svg` / `logo-light.svg` for
-`<picture>` in Markdown): "MiND" in the shared-stem construction — three
-light stems, a green chevron / dot / diagonal / arc separating the letters,
-the "D" node carrying a haloed green disc — followed by **VIEW** set as a
-green 2×2 monospaced grid (the same mark as the app icon). The stems are the
-**same neutral**, not a third colour: an earlier draft coloured VIEW a marigold
-(`#EFAC39`) and it was dropped — it read as a warning amber, collided with
-the ANSI tag palette, and failed WCAG on the light background (1.9:1). The
-neutral parts are `currentColor` so the wordmark works on either theme;
-green stays literal `#3FB950`. Do not reintroduce a third brand hue — same
-rule that killed `--blue`.
+**Logo** (`logo.svg`): the VIEW grid in green `#3FB950`, no plate and no
+background. The green is literal, so it reads on either theme and one file
+serves both (no `<picture>` / dark-light pair). The earlier "MiND + VIEW"
+wordmark (2026-09-09) was **discontinued on 2026-10-07**: too complex (Felipe);
+VIEW alone is the brand. An even earlier draft coloured VIEW a marigold
+(`#EFAC39`) and was dropped: it read as a warning amber, collided with the ANSI
+tag palette, and failed WCAG on the light background (1.9:1). Do not
+reintroduce a third brand hue — same rule that killed `--blue`.
 
-**In the app's sidebar** only the VIEW grid is shown — green, no plate,
-no MiND half (Felipe, 2026-09-27; `web/src/components/BrandLogo.tsx`,
-24 px square). The full wordmark stays the brand's for docs and the site.
+**In the app's sidebar** the same VIEW grid is shown — green, no plate
+(`web/src/components/BrandLogo.tsx`, 24 px square).
 
 **App icon** (`icon.svg`, mirrored to `web/public/favicon.svg`): the word
 **VIEW** as a 2×2 monospaced grid, green `#3FB950` on a `#0d0d0d` rounded

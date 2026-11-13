@@ -9,6 +9,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync
 import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /** fetch()/undici refuse to let JS override the Host header — same as a
@@ -26,6 +27,7 @@ function requestWithHost(path: string, host: string): Promise<number> {
   });
 }
 
+const BOOT_SECRET = 'test-boot-secret';
 const PORT = 4931; // arbitrary, unlikely to collide with the real dev instance's 4317
 let vaultDir: string;
 let dataDir: string;
@@ -102,6 +104,7 @@ beforeAll(async () => {
       MINDVIEW_DATA_DIR: dataDir,
       MINDVIEW_STATE_DIR: stateDir,
       MINDVIEW_WEB_DIR: webDir,
+      MINDVIEW_BOOT_SECRET: BOOT_SECRET,
     },
     detached: true, // own process group, so afterAll can kill it and any child it spawns
   });
@@ -386,5 +389,26 @@ describe('composition root — backup export/import (replaces the mindview-data 
       body: JSON.stringify({ version: 999, settings: {}, notebooks: [] }),
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('desktop boot handshake', () => {
+  const challenge = 'a'.repeat(32);
+
+  it('proves it holds the shell secret by answering the challenge with its HMAC', async () => {
+    const res = await fetch(`http://127.0.0.1:${PORT}/__mv/boot?c=${challenge}`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe(createHmac('sha256', BOOT_SECRET).update(challenge).digest('hex'));
+  });
+
+  it('gives a different proof for a different challenge, and refuses a missing/short one', async () => {
+    const other = await (await fetch(`http://127.0.0.1:${PORT}/__mv/boot?c=${'b'.repeat(32)}`)).text();
+    expect(other).not.toBe(createHmac('sha256', BOOT_SECRET).update(challenge).digest('hex'));
+    expect((await fetch(`http://127.0.0.1:${PORT}/__mv/boot`)).status).toBe(400);
+    expect((await fetch(`http://127.0.0.1:${PORT}/__mv/boot?c=x`)).status).toBe(400);
+  });
+
+  it('rejects a spoofed Host header', async () => {
+    expect(await requestWithHost(`/__mv/boot?c=${challenge}`, 'evil.example')).toBe(403);
   });
 });

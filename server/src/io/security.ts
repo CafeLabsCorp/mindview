@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 /** One random token per process run, required as `?token=` on every request. */
@@ -62,4 +62,13 @@ export function tokenFromRequest(req: IncomingMessage): string | null {
 export function rejectUnauthorized(res: ServerResponse, reason: string): void {
   res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
   res.end(`403 forbidden: ${reason}`);
+}
+
+/** Proof that THIS process is the server the desktop shell spawned, and not
+ * some other local process that grabbed the port first. The shell hands the
+ * child a secret through its environment only, then sends a random
+ * challenge; only a process holding the secret can answer. Same function on
+ * both sides (desktop/src/serverProcess.ts). */
+export function bootProof(secret: string, challenge: string): string {
+  return createHmac('sha256', secret).update(challenge).digest('hex');
 }

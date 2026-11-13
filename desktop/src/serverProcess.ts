@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
@@ -68,18 +69,41 @@ async function choosePort(avoid: number | null, onLog: (line: string) => void): 
   return fresh;
 }
 
-function waitUntilReady(port: number, timeoutMs: number): Promise<void> {
+/** Same HMAC as server/src/io/security.ts bootProof. */
+function bootProof(secret: string, challenge: string): string {
+  return createHmac('sha256', secret).update(challenge).digest('hex');
+}
+
+/** Ready = THE server we spawned answered a fresh challenge with the proof
+ * only it can compute. A plain "something answered on the port" is not
+ * enough: another local process could have taken the port between the free
+ * check and the spawn, and the window would load (and trust, same origin)
+ * whatever it serves. */
+function waitUntilReady(port: number, secret: string, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   return new Promise((resolve, reject) => {
     const tick = () => {
+      const challenge = randomBytes(16).toString('hex');
+      const expected = Buffer.from(bootProof(secret, challenge));
       const req = httpGet(
-        { host: '127.0.0.1', port, path: '/', headers: { Host: `127.0.0.1:${port}` }, timeout: 1500 },
+        {
+          host: '127.0.0.1',
+          port,
+          path: `/__mv/boot?c=${challenge}`,
+          headers: { Host: `127.0.0.1:${port}` },
+          timeout: 1500,
+        },
         (res) => {
-          res.resume();
-          // Any HTTP answer from the SPA shell means the server is up. `/`
-          // is Host-checked only (no token), unlike /api/*.
-          if (res.statusCode && res.statusCode < 500) resolve();
-          else retry();
+          let body = '';
+          res.setEncoding('utf8');
+          res.on('data', (d: string) => {
+            if (body.length < 256) body += d;
+          });
+          res.on('end', () => {
+            const got = Buffer.from(body);
+            if (res.statusCode === 200 && got.length === expected.length && timingSafeEqual(got, expected)) resolve();
+            else retry();
+          });
         },
       );
       req.on('error', retry);
@@ -111,12 +135,13 @@ class EarlyExitError extends Error {}
 async function startServerOn(port: number, mode: LaunchMode, onLog: (line: string) => void): Promise<RunningServer> {
   const paths = resolveShellPaths();
   const data = stateDir();
+  const bootSecret = randomBytes(32).toString('hex');
 
   let child: ChildProcess;
 
   if (mode === 'wsl') {
     // Run inside the distro. Every dynamic value goes in as a positional
-    // bash arg ("$1".."$4") so bash never re-parses it — a path with an
+    // bash arg ("$1".."$5") so bash never re-parses it — a path with an
     // apostrophe or `$` would detonate a interpolated command string.
     // The Windows paths are converted by `wslpath` INSIDE this same bash:
     // it used to be three separate `wsl.exe wslpath` round trips from
@@ -125,8 +150,8 @@ async function startServerOn(port: number, mode: LaunchMode, onLog: (line: strin
       'web=$(wslpath -a "$2") && data=$(wslpath -a "$3") && entry=$(wslpath -a "$4") ' +
       '|| { echo "wslpath failed converting the shell paths" >&2; exit 97; }; ' +
       'exec env MINDVIEW_PORT="$1" MINDVIEW_WEB_DIR="$web" MINDVIEW_DATA_DIR="$data" ' +
-      'MINDVIEW_STATE_DIR="$data" MINDVIEW_SHELL_MANAGED=1 node "$entry"';
-    child = spawn('wsl.exe', ['-e', 'bash', '-lc', script, 'mindview', String(port), paths.webDir, data, paths.serverEntry], {
+      'MINDVIEW_STATE_DIR="$data" MINDVIEW_SHELL_MANAGED=1 MINDVIEW_BOOT_SECRET="$5" node "$entry"';
+    child = spawn('wsl.exe', ['-e', 'bash', '-lc', script, 'mindview', String(port), paths.webDir, data, paths.serverEntry, bootSecret], {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     });
@@ -138,6 +163,7 @@ async function startServerOn(port: number, mode: LaunchMode, onLog: (line: strin
       MINDVIEW_DATA_DIR: data,
       MINDVIEW_STATE_DIR: data,
       MINDVIEW_SHELL_MANAGED: '1',
+      MINDVIEW_BOOT_SECRET: bootSecret,
     };
     if (paths.nodeBinIsElectron) spawnEnv.ELECTRON_RUN_AS_NODE = '1';
     child = spawn(paths.nodeBin, [paths.serverEntry], { env: spawnEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
@@ -152,7 +178,7 @@ async function startServerOn(port: number, mode: LaunchMode, onLog: (line: strin
   });
 
   // WSL cold start = distro boot + `bash -l` + node; give it real headroom.
-  await Promise.race([waitUntilReady(port, mode === 'wsl' ? 60000 : 20000), exited]);
+  await Promise.race([waitUntilReady(port, bootSecret, mode === 'wsl' ? 60000 : 20000), exited]);
 
   const stop = () =>
     new Promise<void>((resolve) => {

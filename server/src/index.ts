@@ -52,7 +52,7 @@ import { confine, OutsideRootError } from './io/confine.js';
 import { HostPathError, toDesktopPath, toHostPath } from './io/hostPath.js';
 import { assetHeaders } from './app/assetServing.js';
 import { obsidianUri, vscodeUri } from './io/externalOpen.js';
-import { generateNonce, generateToken, isHostAllowed, pageCsp, rejectUnauthorized, tokenFromRequest, tokenMatches } from './io/security.js';
+import { bootProof, generateNonce, generateToken, isHostAllowed, pageCsp, rejectUnauthorized, tokenFromRequest, tokenMatches } from './io/security.js';
 import { HttpError, readJsonBody, sendJson } from './http/respond.js';
 import { Router } from './http/router.js';
 import { attachTerminalBridge, isOriginAllowed, killAllTerminalSessions } from './http/terminalSocket.js';
@@ -61,6 +61,7 @@ import { resolveCwd, resolveLaunch } from './app/terminalService.js';
 
 const PORT = Number(process.env.MINDVIEW_PORT ?? 4317);
 const TOKEN = generateToken();
+const BOOT_SECRET = process.env.MINDVIEW_BOOT_SECRET || null;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // In dev/`npm run start` this resolves relative to server/src. In the
 // packaged desktop app the layout is different, so the Electron shell
@@ -450,6 +451,20 @@ const server = createServer(async (req, res) => {
   }
   const url = new URL(req.url ?? '/', 'http://internal');
   const pathname = url.pathname;
+
+  // Boot handshake with the desktop shell (see bootProof). Only exists when
+  // the shell passed a secret; Host-checked above, no token needed — the
+  // answer proves nothing to anyone who doesn't already hold the secret.
+  if (pathname === '/__mv/boot' && BOOT_SECRET) {
+    const challenge = url.searchParams.get('c') ?? '';
+    if (challenge.length < 16 || challenge.length > 128) {
+      sendJson(res, 400, { error: 'bad challenge' });
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'text/plain', 'cache-control': 'no-store' });
+    res.end(bootProof(BOOT_SECRET, challenge));
+    return;
+  }
 
   if (pathname.startsWith('/api/')) {
     // The token alone is not enough: it can leak (a PDF can read its own

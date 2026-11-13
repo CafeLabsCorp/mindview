@@ -5,6 +5,7 @@ import { detectMode, readStoredMode, writeStoredMode, type LaunchMode } from './
 import { startServer, type RunningServer } from './serverProcess.js';
 import { SPLASH_URL } from './splash.js';
 import { canOpenExternally } from './openable.js';
+import { isAllowedEditorUri } from './externalUri.js';
 import { stateDir } from './paths.js';
 
 // MindView desktop shell — a window and nothing else. The Node server does
@@ -305,7 +306,7 @@ function createWindow(): void {
         },
       };
     }
-    if (/^https?:\/\//.test(url)) shell.openExternal(url);
+    if (/^https?:\/\//.test(url) || isAllowedEditorUri(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
   win.webContents.on('did-create-window', (child, { frameName }) => {
@@ -326,6 +327,12 @@ function createWindow(): void {
   // (loadURL from here doesn't fire will-navigate; only the page's own
   // navigations do — and on the splash, before appOrigin exists, none pass.)
   win.webContents.on('will-navigate', (e, url) => {
+    // "Open in Obsidian / VS Code": the OS resolves these, the window stays.
+    if (isAllowedEditorUri(url)) {
+      e.preventDefault();
+      shell.openExternal(url);
+      return;
+    }
     try {
       if (!appOrigin || new URL(url).origin !== appOrigin) e.preventDefault();
     } catch {

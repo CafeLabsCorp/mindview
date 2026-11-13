@@ -15,8 +15,8 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 // node-pty is N-API, so bumping the Node patch never breaks the shipped
-// prebuild — keep this current with the latest 20.x for security fixes.
-const NODE_VERSION = process.env.MINDVIEW_NODE_VERSION ?? 'v20.19.4';
+// prebuild — keep this current with the latest 24.x (LTS) for security fixes.
+const NODE_VERSION = process.env.MINDVIEW_NODE_VERSION ?? 'v24.22.3';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'node'); // -> resources/node in the packaged app
 

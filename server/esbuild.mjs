@@ -21,7 +21,7 @@ await build({
   bundle: true,
   platform: 'node',
   format: 'esm',
-  target: 'node20',
+  target: 'node24',
   external: EXTERNAL,
   // import.meta.url is used for __dirname; keep ESM semantics intact.
   banner: {

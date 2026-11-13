@@ -34,6 +34,9 @@ function readSession(): Session | null {
 function injectTokenPlugin() {
   return {
     name: 'mindview-inject-token',
+    // Dev only: in a build the Node server injects the live token (with a CSP
+    // nonce) per response; baking one here would leave a stale, un-nonced script.
+    apply: 'serve' as const,
     transformIndexHtml(html: string) {
       const session = readSession();
       const token = session?.token ?? '';

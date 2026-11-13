@@ -6,6 +6,31 @@ export function generateToken(): string {
   return randomBytes(24).toString('base64url');
 }
 
+/** Per-response nonce for the one inline script (the token injection). */
+export function generateNonce(): string {
+  return randomBytes(16).toString('base64');
+}
+
+/** CSP for the SPA page, the one that holds the token. The only inline
+ * script is the token injection, allowed by a per-response nonce. Inline
+ * styles stay allowed (React `style=` and xterm set them at runtime); PDFs
+ * render in a blob: iframe. Everything else is same-origin. */
+export function pageCsp(nonce: string, port: number): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}'`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    `connect-src 'self' ws://127.0.0.1:${port} ws://localhost:${port}`,
+    "frame-src blob:",
+    "object-src blob:",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+}
+
 const ALLOWED_HOSTS = new Set(['127.0.0.1', 'localhost']);
 
 /** Anti DNS-rebinding: only accept requests whose Host header names this

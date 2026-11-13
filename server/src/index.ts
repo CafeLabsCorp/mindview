@@ -52,7 +52,7 @@ import { confine, OutsideRootError } from './io/confine.js';
 import { HostPathError, toDesktopPath, toHostPath } from './io/hostPath.js';
 import { assetHeaders } from './app/assetServing.js';
 import { obsidianUri, vscodeUri } from './io/externalOpen.js';
-import { generateToken, isHostAllowed, rejectUnauthorized, tokenFromRequest, tokenMatches } from './io/security.js';
+import { generateNonce, generateToken, isHostAllowed, pageCsp, rejectUnauthorized, tokenFromRequest, tokenMatches } from './io/security.js';
 import { HttpError, readJsonBody, sendJson } from './http/respond.js';
 import { Router } from './http/router.js';
 import { attachTerminalBridge, isOriginAllowed, killAllTerminalSessions } from './http/terminalSocket.js';
@@ -401,8 +401,8 @@ const CONTENT_TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-function injectToken(html: string): string {
-  const script = `<script>window.__MV_TOKEN__=${JSON.stringify(TOKEN)};window.__MV_PORT__=${PORT};</script>`;
+function injectToken(html: string, nonce: string): string {
+  const script = `<script nonce="${nonce}">window.__MV_TOKEN__=${JSON.stringify(TOKEN)};window.__MV_PORT__=${PORT};</script>`;
   return html.includes('</head>') ? html.replace('</head>', `${script}</head>`) : script + html;
 }
 
@@ -426,13 +426,14 @@ function serveStatic(pathname: string, res: import('node:http').ServerResponse):
   if (target === indexPath) {
     // This page carries the token — never let another site frame it
     // (clickjacking the terminal).
+    const nonce = generateNonce();
     res.writeHead(200, {
       'content-type': 'text/html; charset=utf-8',
-      'content-security-policy': "frame-ancestors 'none'",
+      'content-security-policy': pageCsp(nonce, PORT),
       'x-frame-options': 'DENY',
       'referrer-policy': 'no-referrer',
     });
-    res.end(injectToken(readFileSync(target, 'utf-8')));
+    res.end(injectToken(readFileSync(target, 'utf-8'), nonce));
     return;
   }
   res.writeHead(200, { 'content-type': CONTENT_TYPES[extname(target)] ?? 'application/octet-stream' });

@@ -72,8 +72,13 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(main).catch((err) => fatal(err));
 }
 
+/** ms since this process was launched — includes the Electron boot that
+ * happens before any of our code runs (the slow part on a cold start). */
+const sinceLaunch = () => Math.round(process.uptime() * 1000);
+
 async function main(): Promise<void> {
   initLogFile();
+  log(`[boot] app ready ${sinceLaunch()} ms after launch`);
   // A minimal Edit menu (not null): keeps Ctrl+C/V/X/A working in the
   // reader and terminal. autoHideMenuBar hides the bar itself.
   Menu.setApplicationMenu(Menu.buildFromTemplate([{ role: 'editMenu' }]));
@@ -95,7 +100,7 @@ async function main(): Promise<void> {
   } catch (err) {
     return fatal(err, 'O backend do MindView não subiu.');
   }
-  log(`[shell] server ready at ${server.url} in ${Date.now() - started} ms`);
+  log(`[shell] server ready at ${server.url} in ${Date.now() - started} ms (${sinceLaunch()} ms after launch)`);
 
   if (smoke) {
     log(`[smoke] ok`);
@@ -280,6 +285,7 @@ function createWindow(): void {
   win.once('ready-to-show', () => {
     win?.maximize();
     win?.show();
+    log(`[boot] window shown ${sinceLaunch()} ms after launch`);
   });
   win.loadURL(SPLASH_URL);
 

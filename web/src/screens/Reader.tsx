@@ -24,7 +24,7 @@ export function Reader({ path }: { path: string | null }) {
         <TerminalChrome path={`${t('chrome.root')}/${path}`} />
         <div className="reader-layout">
           <div className="reader-article-col">
-            <div style={{ maxWidth: 'var(--read-col)', width: '100%' }}>
+            <div style={{ width: '100%' }}>
               <AssetViewer path={path} />
             </div>
           </div>

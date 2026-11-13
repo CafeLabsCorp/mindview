@@ -2001,6 +2001,14 @@ body.is-dragging-tab * {
   font-family: var(--font-mono);
   font-size: 11px;
 }
+.asset-viewer {
+  max-width: var(--read-col);
+  margin: 0 auto;
+}
+/* A PDF needs the width of the window, not the text column. */
+.asset-viewer.is-pdf {
+  max-width: 1400px;
+}
 .asset-viewer h1 {
   margin-bottom: 4px;
   word-break: break-all;

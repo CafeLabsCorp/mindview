@@ -35,7 +35,7 @@ export function AssetViewer({ path }: { path: string }) {
   const canOpen = !!desktop?.canOpenExternally(asset.ext);
 
   return (
-    <div className="asset-viewer">
+    <div className={`asset-viewer${asset.view === 'pdf' ? ' is-pdf' : ''}`}>
       <div className="asset-head">
         <h1 style={{ fontFamily: 'var(--font-display)' }}>{name}</h1>
         <div className="asset-meta mono">
@@ -105,7 +105,9 @@ function PdfAsset({ rawUrl, title }: { rawUrl: string; title: string }) {
 
   if (failed) return <div className="error-banner">{t('asset.loadFailed')}</div>;
   if (!src) return <p style={{ color: 'var(--subtle)' }}>{t('common.loading')}</p>;
-  return <iframe className="asset-pdf" src={src} title={title} />;
+  // Chromium's PDF open parameters: fit the width and keep the thumbnail pane
+  // closed — its default (side pane open, fit-to-page) left pages tiny.
+  return <iframe className="asset-pdf" src={`${src}#view=FitH&navpanes=0`} title={title} />;
 }
 
 function TextAsset({ rawUrl, ext, size }: { rawUrl: string; ext: string; size: number }) {
